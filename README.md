@@ -82,6 +82,18 @@ uv run github-scan check Sunwood-ai-labs `
 
 監視 repo 側で GitHub 通知を受け取るには、その repo を watch しておくのがおすすめです。
 
+## Discord notification
+
+Discord にも通知したい場合は、repo secret に `DISCORD_BOT_TOKEN` と `DISCORD_CHANNEL_ID` を追加してください。workflow は change 検知時だけ、親チャンネルに短い通知を出し、投稿ごとに thread を作成して、その中に日本語の Embed 詳細を送ります。
+
+互換用に `DISCORD_WEBHOOK_URL` も残していますが、`DISCORD_BOT_TOKEN` と `DISCORD_CHANNEL_ID` がある場合は Bot API を優先します。
+
+ローカルで通知文面だけ確認したい場合は、次の dry-run が使えます。
+
+```powershell
+uv run github-scan notify-discord --report-file state/last-report.json --dry-run
+```
+
 ## ローカル確認の流れ
 
 ```powershell

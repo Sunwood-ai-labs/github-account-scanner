@@ -5,6 +5,14 @@ import os
 from pathlib import Path
 import sys
 
+from github_scan.discord_webhook import (
+    DiscordNotificationError,
+    build_discord_dry_run_text,
+    build_discord_payload,
+    load_report as load_discord_report,
+    post_to_discord,
+    post_via_discord_bot,
+)
 from github_scan.monitor import (
     GitHubApiError,
     GitHubClient,
@@ -19,6 +27,24 @@ from github_scan.monitor import (
 
 def _default_state_file(account: str) -> Path:
     return Path("state") / f"{account.lower()}.json"
+
+
+def _load_local_env_files() -> None:
+    for path in (Path(".env"), Path(".env.local")):
+        if not path.exists():
+            continue
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if not key or key in os.environ:
+                continue
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+                value = value[1:-1]
+            os.environ[key] = value
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -49,6 +75,40 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.0,
         help="Optional pause after each release request to reduce API pressure.",
+    )
+
+    discord_parser = subparsers.add_parser("notify-discord", help="Send a scan report to a Discord webhook.")
+    discord_parser.add_argument(
+        "--report-file",
+        type=Path,
+        required=True,
+        help="JSON report created by the check command.",
+    )
+    discord_parser.add_argument(
+        "--webhook-url",
+        default=os.getenv("DISCORD_WEBHOOK_URL"),
+        help="Discord webhook URL. Defaults to DISCORD_WEBHOOK_URL from the environment.",
+    )
+    discord_parser.add_argument(
+        "--bot-token",
+        default=os.getenv("DISCORD_BOT_TOKEN"),
+        help="Discord bot token. Defaults to DISCORD_BOT_TOKEN from the environment.",
+    )
+    discord_parser.add_argument(
+        "--channel-id",
+        default=os.getenv("DISCORD_CHANNEL_ID"),
+        help="Discord channel ID used as the parent channel for thread creation.",
+    )
+    discord_parser.add_argument(
+        "--max-items",
+        type=int,
+        default=5,
+        help="Maximum number of repositories or releases to include in the Discord message.",
+    )
+    discord_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the Discord message instead of sending it.",
     )
     return parser
 
@@ -112,14 +172,45 @@ def run_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_notify_discord(args: argparse.Namespace) -> int:
+    report = load_discord_report(args.report_file)
+    payload = build_discord_payload(report, max_items=args.max_items)
+
+    if args.dry_run:
+        print(build_discord_dry_run_text(report, max_items=args.max_items))
+        return 0
+
+    if args.bot_token and args.channel_id:
+        result = post_via_discord_bot(args.bot_token, args.channel_id, report, payload)
+        print(f"Discord thread notification sent. thread_id={result['thread_id']}")
+        return 0
+
+    if args.webhook_url:
+        post_to_discord(args.webhook_url, payload)
+        print("Discord webhook notification sent.")
+        return 0
+
+    print(
+        "DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID, or DISCORD_WEBHOOK_URL, must be set.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def main() -> int:
+    _load_local_env_files()
     parser = build_parser()
     args = parser.parse_args()
     try:
         if args.command == "check":
             return run_check(args)
+        if args.command == "notify-discord":
+            return run_notify_discord(args)
         parser.error(f"Unsupported command: {args.command}")
     except GitHubApiError as error:
+        print(str(error), file=sys.stderr)
+        return 1
+    except DiscordNotificationError as error:
         print(str(error), file=sys.stderr)
         return 1
     return 0

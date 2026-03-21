@@ -3255,8 +3255,8 @@
       "is_fork": false,
       "is_archived": false,
       "created_at": "2026-03-21T10:39:44Z",
-      "updated_at": "2026-03-21T10:39:50Z",
-      "pushed_at": "2026-03-21T10:41:55Z"
+      "updated_at": "2026-03-21T11:28:48Z",
+      "pushed_at": "2026-03-21T11:28:45Z"
     },
     {
       "id": 1187909308,
@@ -3268,8 +3268,8 @@
       "is_fork": false,
       "is_archived": false,
       "created_at": "2026-03-21T10:59:40Z",
-      "updated_at": "2026-03-21T11:11:45Z",
-      "pushed_at": "2026-03-21T11:11:53Z"
+      "updated_at": "2026-03-21T11:43:10Z",
+      "pushed_at": "2026-03-21T11:43:07Z"
     },
     {
       "id": 694451051,
@@ -10910,6 +10910,26 @@
     "Sunwood-ai-labs/git-it-write": [],
     "Sunwood-ai-labs/github-account-scanner": [],
     "Sunwood-ai-labs/github-account-scanner-detection-sample-20260321-195933": [
+      {
+        "id": 299724108,
+        "tag_name": "v0.1.2",
+        "name": "v0.1.2",
+        "html_url": "https://github.com/Sunwood-ai-labs/github-account-scanner-detection-sample-20260321-195933/releases/tag/v0.1.2",
+        "is_draft": false,
+        "is_prerelease": false,
+        "created_at": "2026-03-21T11:43:02Z",
+        "published_at": "2026-03-21T11:43:07Z"
+      },
+      {
+        "id": 299723060,
+        "tag_name": "v0.1.1",
+        "name": "v0.1.1",
+        "html_url": "https://github.com/Sunwood-ai-labs/github-account-scanner-detection-sample-20260321-195933/releases/tag/v0.1.1",
+        "is_draft": false,
+        "is_prerelease": false,
+        "created_at": "2026-03-21T11:31:34Z",
+        "published_at": "2026-03-21T11:31:44Z"
+      },
       {
         "id": 299721144,
         "tag_name": "v0.1.0",

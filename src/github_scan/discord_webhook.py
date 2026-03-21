@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta, timezone
+from functools import lru_cache
+from importlib import resources
 import json
 from pathlib import Path
 from typing import Any
@@ -194,6 +196,47 @@ def build_thread_starter_content(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+@lru_cache(maxsize=1)
+def _load_explainer_template() -> str:
+    return (
+        resources.files("github_scan")
+        .joinpath("prompts")
+        .joinpath("discord_explainer_request.md")
+        .read_text(encoding="utf-8")
+    )
+
+
+def _build_explainer_event_lines(report: dict[str, Any]) -> str:
+    lines: list[str] = []
+
+    new_repositories = report.get("new_repositories", [])
+    for repo in new_repositories[:3]:
+        lines.append(f"- Repository: {repo['full_name']}")
+        lines.append(f"  URL: {repo['html_url']}")
+        if repo.get("description"):
+            lines.append(f"  説明: {repo['description']}")
+
+    new_releases = report.get("new_releases", [])
+    for item in new_releases[:3]:
+        repo = item["repository"]
+        release = item["release"]
+        lines.append(f"- Release: {repo['full_name']} / {release['tag_name']}")
+        lines.append(f"  URL: {release['html_url']}")
+        lines.append(f"  公開日時: {release.get('published_at') or release.get('created_at') or 'unknown'}")
+
+    if not lines:
+        lines.append("- 今回のレポートでは新規イベントはありませんでした。")
+
+    return "\n".join(lines)
+
+
+def build_explainer_request(report: dict[str, Any], mention_user_id: str) -> str:
+    return _load_explainer_template().format(
+        mention=f"<@{mention_user_id}>",
+        event_lines=_build_explainer_event_lines(report),
+    )
+
+
 def _bot_request(
     method: str,
     path: str,
@@ -232,6 +275,7 @@ def post_via_discord_bot(
     report: dict[str, Any],
     payload: dict[str, Any],
     *,
+    mention_user_id: str | None = None,
     timeout: float = 30.0,
 ) -> dict[str, Any]:
     starter_message = _bot_request(
@@ -267,12 +311,26 @@ def post_via_discord_bot(
         timeout=timeout,
     )
 
+    explainer_message: dict[str, Any] | None = None
+    if mention_user_id:
+        explainer_message = _bot_request(
+            "POST",
+            f"/channels/{quote(thread['id'], safe='')}/messages",
+            token,
+            payload={
+                "content": build_explainer_request(report, mention_user_id),
+                "allowed_mentions": {"users": [mention_user_id]},
+            },
+            timeout=timeout,
+        )
+
     return {
         "channel_id": channel_id,
         "starter_message_id": starter_message["id"],
         "thread_id": thread["id"],
         "thread_name": thread.get("name") or build_thread_name(report),
         "thread_message_id": thread_message["id"],
+        "explainer_message_id": explainer_message["id"] if explainer_message else None,
     }
 
 

@@ -100,6 +100,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Discord channel ID used as the parent channel for thread creation.",
     )
     discord_parser.add_argument(
+        "--mention-user-id",
+        default=os.getenv("DISCORD_EXPLAINER_USER_ID"),
+        help="Discord user ID to mention in the explainer request message.",
+    )
+    discord_parser.add_argument(
         "--max-items",
         type=int,
         default=5,
@@ -181,7 +186,13 @@ def run_notify_discord(args: argparse.Namespace) -> int:
         return 0
 
     if args.bot_token and args.channel_id:
-        result = post_via_discord_bot(args.bot_token, args.channel_id, report, payload)
+        result = post_via_discord_bot(
+            args.bot_token,
+            args.channel_id,
+            report,
+            payload,
+            mention_user_id=args.mention_user_id,
+        )
         print(f"Discord thread notification sent. thread_id={result['thread_id']}")
         return 0
 

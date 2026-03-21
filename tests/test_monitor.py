@@ -5,6 +5,7 @@ import unittest
 from github_scan.discord_webhook import (
     build_discord_dry_run_text,
     build_discord_payload,
+    build_explainer_request,
     build_thread_name,
     build_thread_starter_content,
 )
@@ -361,6 +362,38 @@ class MonitorTests(unittest.TestCase):
         self.assertIn("Repo: Sunwood-ai-labs/alpha", starter)
         self.assertIn("Release: Sunwood-ai-labs/alpha / v1.0.0", starter)
         self.assertIn("新しい更新を検知しました", starter)
+
+    def test_explainer_request_mentions_user_and_event(self) -> None:
+        repo = sample_repository(1, "alpha", "2026-03-18T00:00:00Z")
+        release = sample_release(10, "v1.0.0", "2026-03-18T01:00:00Z")
+        report = build_report_document(
+            {
+                "checked_at": "2026-03-21T11:37:00Z",
+                "bootstrap": False,
+                "changed": True,
+                "account": {
+                    "login": "Sunwood-ai-labs",
+                    "type": "User",
+                    "html_url": "https://github.com/Sunwood-ai-labs",
+                    "public_repos": 709,
+                    "release_window": RECENT_RELEASE_WINDOW,
+                },
+                "new_repositories": [repo],
+                "new_releases": [{"repository": repo, "release": release}],
+            },
+            request_count=1,
+            token_used=True,
+            rate_limit={"min_remaining": 999},
+        )
+
+        prompt = build_explainer_request(report, "123456789012345678")
+
+        self.assertIn("<@123456789012345678>", prompt)
+        self.assertIn("sunwood-community skill", prompt)
+        self.assertIn("Release: Sunwood-ai-labs/alpha / v1.0.0", prompt)
+        self.assertIn("投稿したリツイートのURL", prompt)
+        self.assertNotIn("{mention}", prompt)
+        self.assertNotIn("{event_lines}", prompt)
 
 
 if __name__ == "__main__":

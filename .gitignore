@@ -4,3 +4,6 @@ __pycache__/
 *.pyc
 .env
 .env.local
+state/*.json
+state/*.md
+!state/.gitkeep

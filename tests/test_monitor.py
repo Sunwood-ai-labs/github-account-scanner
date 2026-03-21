@@ -390,10 +390,73 @@ class MonitorTests(unittest.TestCase):
 
         self.assertIn("<@123456789012345678>", prompt)
         self.assertIn("sunwood-community skill", prompt)
+        self.assertIn("## 新しく作成された Repository", prompt)
+        self.assertIn("## 新しく公開された Release", prompt)
         self.assertIn("Release: Sunwood-ai-labs/alpha / v1.0.0", prompt)
+        self.assertIn("この Repository について:", prompt)
+        self.assertIn("この Release について:", prompt)
         self.assertIn("投稿したリツイートのURL", prompt)
         self.assertNotIn("{mention}", prompt)
-        self.assertNotIn("{event_lines}", prompt)
+        self.assertNotIn("{event_sections}", prompt)
+        self.assertNotIn("{repository_lines}", prompt)
+        self.assertNotIn("{release_lines}", prompt)
+
+    def test_explainer_request_repo_only_uses_repository_template(self) -> None:
+        repo = sample_repository(1, "alpha", "2026-03-18T00:00:00Z")
+        report = build_report_document(
+            {
+                "checked_at": "2026-03-21T11:37:00Z",
+                "bootstrap": False,
+                "changed": True,
+                "account": {
+                    "login": "Sunwood-ai-labs",
+                    "type": "User",
+                    "html_url": "https://github.com/Sunwood-ai-labs",
+                    "public_repos": 709,
+                    "release_window": RECENT_RELEASE_WINDOW,
+                },
+                "new_repositories": [repo],
+                "new_releases": [],
+            },
+            request_count=1,
+            token_used=True,
+            rate_limit={"min_remaining": 999},
+        )
+
+        prompt = build_explainer_request(report, "123456789012345678")
+
+        self.assertIn("## 新しく作成された Repository", prompt)
+        self.assertIn("Repo", prompt)
+        self.assertNotIn("## 新しく公開された Release", prompt)
+
+    def test_explainer_request_release_only_uses_release_template(self) -> None:
+        repo = sample_repository(1, "alpha", "2026-03-18T00:00:00Z")
+        release = sample_release(10, "v1.0.0", "2026-03-18T01:00:00Z")
+        report = build_report_document(
+            {
+                "checked_at": "2026-03-21T11:37:00Z",
+                "bootstrap": False,
+                "changed": True,
+                "account": {
+                    "login": "Sunwood-ai-labs",
+                    "type": "User",
+                    "html_url": "https://github.com/Sunwood-ai-labs",
+                    "public_repos": 709,
+                    "release_window": RECENT_RELEASE_WINDOW,
+                },
+                "new_repositories": [],
+                "new_releases": [{"repository": repo, "release": release}],
+            },
+            request_count=1,
+            token_used=True,
+            rate_limit={"min_remaining": 999},
+        )
+
+        prompt = build_explainer_request(report, "123456789012345678")
+
+        self.assertIn("## 新しく公開された Release", prompt)
+        self.assertIn("Release: Sunwood-ai-labs/alpha / v1.0.0", prompt)
+        self.assertNotIn("## 新しく作成された Repository", prompt)
 
 
 if __name__ == "__main__":

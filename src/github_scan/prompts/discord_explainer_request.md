@@ -2,8 +2,7 @@
 
 下記の GitHub イベントについて、sunwood-community skillを使って引用リツイート解説してください。
 
-対象イベント:
-{event_lines}
+{event_sections}
 
 解説作成の手順:
 1. イベント内容を分析（キーワード、トピック、技術用語を抽出）

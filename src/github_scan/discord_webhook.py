@@ -196,17 +196,17 @@ def build_thread_starter_content(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-@lru_cache(maxsize=1)
-def _load_explainer_template() -> str:
+@lru_cache(maxsize=None)
+def _load_explainer_template(name: str) -> str:
     return (
         resources.files("github_scan")
         .joinpath("prompts")
-        .joinpath("discord_explainer_request.md")
+        .joinpath(name)
         .read_text(encoding="utf-8")
     )
 
 
-def _build_explainer_event_lines(report: dict[str, Any]) -> str:
+def _build_explainer_repository_lines(report: dict[str, Any]) -> str:
     lines: list[str] = []
 
     new_repositories = report.get("new_repositories", [])
@@ -215,6 +215,15 @@ def _build_explainer_event_lines(report: dict[str, Any]) -> str:
         lines.append(f"  URL: {repo['html_url']}")
         if repo.get("description"):
             lines.append(f"  説明: {repo['description']}")
+
+    if not lines:
+        lines.append("- 今回のレポートでは新規 repository はありませんでした。")
+
+    return "\n".join(lines)
+
+
+def _build_explainer_release_lines(report: dict[str, Any]) -> str:
+    lines: list[str] = []
 
     new_releases = report.get("new_releases", [])
     for item in new_releases[:3]:
@@ -225,15 +234,34 @@ def _build_explainer_event_lines(report: dict[str, Any]) -> str:
         lines.append(f"  公開日時: {release.get('published_at') or release.get('created_at') or 'unknown'}")
 
     if not lines:
-        lines.append("- 今回のレポートでは新規イベントはありませんでした。")
+        lines.append("- 今回のレポートでは新規 release はありませんでした。")
 
     return "\n".join(lines)
 
 
 def build_explainer_request(report: dict[str, Any], mention_user_id: str) -> str:
-    return _load_explainer_template().format(
+    sections: list[str] = []
+
+    if report.get("new_repositories"):
+        sections.append(
+            _load_explainer_template("discord_explainer_repository.md").format(
+                repository_lines=_build_explainer_repository_lines(report),
+            ).strip()
+        )
+
+    if report.get("new_releases"):
+        sections.append(
+            _load_explainer_template("discord_explainer_release.md").format(
+                release_lines=_build_explainer_release_lines(report),
+            ).strip()
+        )
+
+    if not sections:
+        sections.append("## 対象イベント\n- 今回のレポートでは新規イベントはありませんでした。")
+
+    return _load_explainer_template("discord_explainer_request.md").format(
         mention=f"<@{mention_user_id}>",
-        event_lines=_build_explainer_event_lines(report),
+        event_sections="\n\n".join(sections),
     )
 
 

@@ -1,5 +1,4 @@
 from pathlib import Path
-import os
 import tempfile
 import unittest
 
@@ -39,7 +38,7 @@ class SchedulerTests(unittest.TestCase):
         self.assertIn("/Create", command)
         self.assertIn("MINUTE", command)
         self.assertIn("15", command)
-        self.assertIn('"D:\\Prj\\Github-scan\\.venv\\Scripts\\python.exe" "D:\\Prj\\Github-scan\\scripts\\run_scheduled_monitor.py"', command)
+        self.assertIn(r"D:\Prj\Github-scan\.venv\Scripts\python.exe D:\Prj\Github-scan\scripts\run_scheduled_monitor.py", command)
 
     def test_build_run_task_command(self) -> None:
         self.assertEqual(

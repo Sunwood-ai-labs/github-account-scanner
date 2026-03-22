@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 
 def build_create_task_command(
@@ -14,7 +15,7 @@ def build_create_task_command(
     if interval_minutes < 1:
         raise ValueError("interval_minutes must be at least 1")
 
-    task_command = f'"{python_executable}" "{runner_script}"'
+    task_command = subprocess.list2cmdline([str(python_executable), str(runner_script)])
     return [
         "schtasks",
         "/Create",

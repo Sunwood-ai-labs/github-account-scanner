@@ -72,7 +72,7 @@ uv run github-scan check Sunwood-ai-labs `
 
 Discord にも通知したい場合は、`.env` か `.env.local` に `DISCORD_BOT_TOKEN` と `DISCORD_CHANNEL_ID` を追加してください。change 検知時は、親チャンネルに短い通知を出し、投稿ごとに thread を作成して、その中に日本語の Embed 詳細を送ります。
 
-AgentAGI など別の Discord Bot に thread 内で解説依頼も出したい場合は、`DISCORD_EXPLAINER_USER_ID` も設定してください。通知後にその user id へメンションしつつ、`sunwood-community skill` を使った解説依頼プロンプトを thread 内へ投稿します。本文テンプレートは [discord_explainer_request.md](/D:/Prj/Github-scan/src/github_scan/prompts/discord_explainer_request.md) を土台にしつつ、イベント部分を [discord_explainer_repository.md](/D:/Prj/Github-scan/src/github_scan/prompts/discord_explainer_repository.md) と [discord_explainer_release.md](/D:/Prj/Github-scan/src/github_scan/prompts/discord_explainer_release.md) に分けて管理しています。
+AgentAGI など別の Discord Bot に thread 内で解説依頼も出したい場合は、`DISCORD_EXPLAINER_USER_ID` も設定してください。通知後にその user id へメンションしつつ、`sunwood-community skill` を使った GitHub更新通知向けの解説依頼プロンプトを thread 内へ投稿します。本文テンプレートは [discord_explainer_request.md](/D:/Prj/Github-scan/src/github_scan/prompts/discord_explainer_request.md) を土台にしつつ、イベント部分を [discord_explainer_repository.md](/D:/Prj/Github-scan/src/github_scan/prompts/discord_explainer_repository.md) と [discord_explainer_release.md](/D:/Prj/Github-scan/src/github_scan/prompts/discord_explainer_release.md) に分けて管理しています。
 
 互換用に `DISCORD_WEBHOOK_URL` も残していますが、`DISCORD_BOT_TOKEN` と `DISCORD_CHANNEL_ID` がある場合は Bot API を優先します。
 

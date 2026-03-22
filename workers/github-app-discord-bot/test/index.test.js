@@ -1,16 +1,32 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
 
 import {
   buildReleaseKey,
   computeSignature,
+  createGitHubAppJwt,
   handleRequest,
   isReleasePublishedEvent,
+  logEvent,
   normalizeDiscordChannelId,
   normalizePath,
   resolveDiscordConfig,
+  stampReleaseReaction,
   verifySignature,
 } from "../src/index.js";
+
+const { privateKey: githubAppPrivateKeyPem } = generateKeyPairSync("rsa", {
+  modulusLength: 2048,
+  privateKeyEncoding: {
+    type: "pkcs1",
+    format: "pem",
+  },
+  publicKeyEncoding: {
+    type: "spki",
+    format: "pem",
+  },
+});
 
 function sampleReleasePayload({
   action = "published",
@@ -77,6 +93,46 @@ function createDiscordFetchMock() {
   return { calls, fetchMock };
 }
 
+function createCombinedFetchMock() {
+  const calls = [];
+  const fetchMock = async (url, init = {}) => {
+    calls.push({
+      url,
+      method: init.method ?? "GET",
+      body: init.body ? JSON.parse(init.body) : null,
+    });
+    if (String(url).startsWith("https://discord.com/api/v10")) {
+      if (url.includes("/threads")) {
+        return Response.json({ id: "thread-1", name: "thread-name" });
+      }
+      if (url.endsWith("/messages")) {
+        return Response.json({ id: `message-${calls.length}` });
+      }
+    }
+    if (String(url) === "https://api.github.com/app/installations/123456/access_tokens") {
+      return Response.json({ token: "ghs_installation_token" });
+    }
+    if (
+      String(url) ===
+      "https://api.github.com/repos/Sunwood-ai-labs/github-account-scanner-detection-sample-20260321-195933/releases/299888743/reactions"
+    ) {
+      return Response.json({ id: 777, content: "eyes" }, { status: 201 });
+    }
+    throw new Error(`Unexpected API mock URL: ${url}`);
+  };
+  return { calls, fetchMock };
+}
+
+function createExecutionContextMock() {
+  const promises = [];
+  return {
+    promises,
+    waitUntil(promise) {
+      promises.push(Promise.resolve(promise));
+    },
+  };
+}
+
 test("normalizePath normalizes slashes", () => {
   assert.equal(normalizePath("/webhook/"), "/webhook");
   assert.equal(normalizePath("github/webhook"), "/github/webhook");
@@ -123,6 +179,24 @@ test("resolveDiscordConfig test profile does not inherit production mentions", (
 
   assert.equal(config.profile, "test");
   assert.equal(config.mentionUserId, null);
+});
+
+test("logEvent emits structured logs when the level matches", () => {
+  const messages = [];
+  const originalConsoleLog = console.log;
+  console.log = (value) => {
+    messages.push(value);
+  };
+  try {
+    logEvent({ WORKER_LOG_LEVEL: "info" }, "debug", "hidden");
+    logEvent({ WORKER_LOG_LEVEL: "info" }, "info", "shown", { deliveryId: "delivery-1" });
+  } finally {
+    console.log = originalConsoleLog;
+  }
+
+  assert.equal(messages.length, 1);
+  assert.match(messages[0], /"message":"shown"/);
+  assert.match(messages[0], /"deliveryId":"delivery-1"/);
 });
 
 test("handleRequest acknowledges ping", async () => {
@@ -200,6 +274,74 @@ test("handleRequest posts release notifications to Discord Bot API", async (cont
   assert.equal(body.discordResult.mentionMessageId, null);
   assert.equal(calls.length, 3);
   assert.match(calls[0].body.content, /\[test\]/);
+});
+
+test("stampReleaseReaction uses the GitHub App installation token and release reactions API", async (context) => {
+  const { calls, fetchMock } = createCombinedFetchMock();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = fetchMock;
+  context.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const result = await stampReleaseReaction(
+    fetchMock,
+    {
+      GITHUB_APP_ID: "3157685",
+      GITHUB_APP_PRIVATE_KEY: githubAppPrivateKeyPem,
+      GITHUB_RELEASE_REACTION: "eyes",
+    },
+    sampleReleasePayload()
+  );
+
+  assert.equal(result.mode, "github-app");
+  assert.equal(result.content, "eyes");
+  assert.equal(result.created, true);
+  assert.equal(result.reactionId, 777);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].url, "https://api.github.com/app/installations/123456/access_tokens");
+  assert.match(calls[1].url, /\/releases\/299888743\/reactions$/);
+});
+
+test("createGitHubAppJwt accepts escaped newline PEM values", async () => {
+  const escapedPem = githubAppPrivateKeyPem.replace(/\n/g, "\\n");
+  const jwt = await createGitHubAppJwt("3157685", escapedPem);
+
+  assert.match(jwt, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+});
+
+test("handleRequest defers release stamping after the Discord notification", async (context) => {
+  const secret = "super-secret";
+  const payload = sampleReleasePayload();
+  const request = await buildRequest(secret, payload, {
+    "x-github-delivery": "delivery-with-reaction",
+  });
+  const { calls, fetchMock } = createCombinedFetchMock();
+  const executionContext = createExecutionContextMock();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = fetchMock;
+  context.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const response = await handleRequest(request, {
+    GITHUB_APP_WEBHOOK_SECRET: secret,
+    DISCORD_DELIVERY_PROFILE: "test",
+    DISCORD_BOT_TOKEN: "token",
+    DISCORD_CHANNEL_ID: "1476217154004058143",
+    GITHUB_APP_ID: "3157685",
+    GITHUB_APP_PRIVATE_KEY: githubAppPrivateKeyPem,
+    GITHUB_RELEASE_REACTION: "eyes",
+  }, executionContext);
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.handled, true);
+  assert.equal(body.discordResult.mode, "bot");
+  assert.equal(body.releaseReactionResult.mode, "deferred");
+  assert.equal(executionContext.promises.length, 1);
+  await Promise.all(executionContext.promises);
+  assert.equal(calls.length, 5);
 });
 
 test("handleRequest dedupes release replays when KV is bound", async (context) => {

@@ -12,6 +12,8 @@ This worker is based on the same deployment shape as [`onizuka-agi-co/github-app
 - verifies `X-Hub-Signature-256`
 - ignores non-release events
 - sends release notifications to Discord using the Bot API
+- emits structured Worker logs for deliveries, duplicate suppression, Discord sends, and GitHub reaction stamping
+- can stamp a reaction onto the detected GitHub release notes
 - supports `production` and `test` delivery profiles
 - never inherits production mentions in `test` unless explicitly configured
 - can optionally dedupe deliveries via Cloudflare KV
@@ -24,7 +26,16 @@ This worker is based on the same deployment shape as [`onizuka-agi-co/github-app
 - repository event subscription: `Release`
 - repository permission: `Contents: Read`
 
-This worker does not call the GitHub API, so it does not need the App private key for the release notification flow.
+The base release notification path does not need the App private key. If you enable release-reaction stamping, the worker also calls the GitHub API and must be given `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY`.
+
+If you want the worker to stamp the detected release notes with a GitHub reaction, set:
+
+- `GITHUB_APP_ID`
+- `GITHUB_APP_PRIVATE_KEY`
+- optional `GITHUB_RELEASE_REACTION` such as `eyes`, `rocket`, or `hooray`
+
+GitHub's reactions API accepts GitHub App installation access tokens, and the endpoint does not require extra repository permissions beyond the installation token itself.
+The worker runs reaction stamping as a best-effort background step after the Discord send succeeds, so webhook delivery is not blocked by a slow GitHub API call.
 
 ## Local Development
 
@@ -49,7 +60,18 @@ Optional secrets via Wrangler:
 npx wrangler secret put GITHUB_APP_WEBHOOK_SECRET
 npx wrangler secret put DISCORD_BOT_TOKEN
 npx wrangler secret put DISCORD_CHANNEL_ID
+npx wrangler secret put GITHUB_APP_ID
+npx wrangler secret put GITHUB_APP_PRIVATE_KEY
+npx wrangler secret put GITHUB_RELEASE_REACTION
+npx wrangler secret put WORKER_LOG_LEVEL
 ```
+
+`GITHUB_APP_PRIVATE_KEY` accepts the GitHub-downloaded PEM as-is or a single-line value with `\n` escapes.
+
+Recommended logging setup:
+
+- `WORKER_LOG_LEVEL=debug` while bringing the app up
+- use `npm run tail` or the Workers dashboard logs while testing releases
 
 ## Test / Production Profiles
 

@@ -97,7 +97,7 @@ Configure the GitHub App with:
 - repository event subscription: `Release`
 - repository permission: `Contents: Read`
 
-This Worker does not call the GitHub API for release notifications, so it does not need the GitHub App private key.
+The base release notification path does not need the GitHub App private key. If you also enable release-reaction stamping, configure `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` in the Worker. Reaction stamping runs as a best-effort background step after Discord delivery.
 
 ## 🔍 What It Monitors
 

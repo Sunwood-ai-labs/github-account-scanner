@@ -1,9 +1,15 @@
 GITHUB_APP_WEBHOOK_SECRET=replace-with-webhook-secret
 GITHUB_APP_WEBHOOK_PATH=/webhook
+WORKER_LOG_LEVEL=debug
 
 DISCORD_DELIVERY_PROFILE=test
 DISCORD_BOT_TOKEN=replace-with-discord-bot-token
 DISCORD_CHANNEL_ID=https://discord.com/channels/<guild_id>/<channel_id>
+
+# Optional GitHub release reaction stamping.
+# GITHUB_APP_ID=3157685
+# GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n..."
+# GITHUB_RELEASE_REACTION=eyes
 
 # Optional per-profile overrides.
 # DISCORD_TEST_CHANNEL_ID=https://discord.com/channels/<guild_id>/<channel_id>
@@ -13,5 +19,6 @@ DISCORD_CHANNEL_ID=https://discord.com/channels/<guild_id>/<channel_id>
 
 # Optional toggles.
 # DRY_RUN_DISCORD=true
+# DRY_RUN_GITHUB_REACTION=true
 # INCLUDE_PRERELEASES=true
 # WEBHOOK_STATE_TTL_SECONDS=2592000

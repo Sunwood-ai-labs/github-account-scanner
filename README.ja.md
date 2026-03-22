@@ -250,6 +250,6 @@ GitHub App 側の設定:
 - subscribed webhook event: `Release`
 - repository permission: `Contents: Read`
 
-release 通知だけであれば GitHub API を追加で叩かないので、GitHub App private key は不要です。
+通知だけなら GitHub App private key は不要ですが、release 検知後に GitHub 側へリアクションを付ける場合は `GITHUB_APP_ID` と `GITHUB_APP_PRIVATE_KEY` を Worker に設定します。リアクション付与は Discord 通知の後段で best-effort に実行されます。
 
 通知実験では `--discord-profile test` を使うと、本番用メンションを継承しません。

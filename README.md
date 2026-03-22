@@ -84,6 +84,25 @@ uv run github-scan check Sunwood-ai-labs `
   --markdown-report state/last-report.md
 ```
 
+## ⏱️ Local Scheduler
+
+Use the Python scheduler runner when you want the monitor to keep checking in the background on your machine.
+
+The scheduled runner lives at [`scripts/run_scheduled_monitor.py`](./scripts/run_scheduled_monitor.py) and performs:
+
+- one `check` run against the configured account
+- report updates under `state/`
+- Discord notification only when the new report actually contains changes
+- log output under `logs/scheduled-monitor/`
+
+Register the Windows Scheduled Task with the Python helper:
+
+```powershell
+.venv\Scripts\python.exe .\scripts\register_monitor_task.py --interval-minutes 15 --run-now
+```
+
+That creates a task named `github-account-scanner-monitor` which launches the repo-local Python environment on a `15` minute cadence.
+
 ## 🔔 Discord Notifications
 
 Add `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID` to `.env` or `.env.local` to send notifications into Discord.

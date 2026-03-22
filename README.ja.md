@@ -84,6 +84,25 @@ uv run github-scan check Sunwood-ai-labs `
   --markdown-report state/last-report.md
 ```
 
+## ⏱️ ローカル定期実行
+
+バックグラウンドで継続監視したい場合は、Python の scheduler runner を使います。
+
+本体は [`scripts/run_scheduled_monitor.py`](./scripts/run_scheduled_monitor.py) で、次をまとめて実行します。
+
+- 対象アカウントへの `check`
+- `state/` 配下のレポート更新
+- 差分があったときだけ Discord 通知
+- `logs/scheduled-monitor/` への実行ログ保存
+
+Windows Task Scheduler の登録は Python helper から行えます。
+
+```powershell
+.venv\Scripts\python.exe .\scripts\register_monitor_task.py --interval-minutes 15 --run-now
+```
+
+これで `github-account-scanner-monitor` という task が作成され、`15` 分おきに repo ローカルの Python 環境から監視が走ります。
+
 ## 🔔 Discord 通知
 
 `.env` または `.env.local` に `DISCORD_BOT_TOKEN` と `DISCORD_CHANNEL_ID` を設定すると、検知結果を Discord に送れます。

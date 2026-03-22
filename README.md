@@ -1,52 +1,81 @@
-# github-scan
+<p align="center">
+  <img src="./assets/scan-beacon.svg" alt="github-account-scanner icon" width="112" />
+</p>
 
-`Sunwood-ai-labs` のような GitHub アカウントを監視して、新規リポジトリ作成と新規リリース公開を検知するための小さな Python ツールです。
+<p align="center">
+  <strong>github-account-scanner</strong><br />
+  Monitor a GitHub account for newly created public repositories and published releases, then fan out Discord alerts.
+</p>
 
-このリポジトリには、ローカルで実行できる CLI が入っています。
+<p align="center">
+  <a href="./README.md"><strong>English</strong></a>
+  |
+  <a href="./README.ja.md">日本語</a>
+</p>
 
-## 何を監視するか
+<p align="center">
+  <img src="https://img.shields.io/github/actions/workflow/status/Sunwood-ai-labs/github-account-scanner/validate.yml?branch=main&label=validate&style=flat-square" alt="Validate workflow status" />
+  <img src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square" alt="Python 3.11+" />
+  <img src="https://img.shields.io/badge/package-uv-6C47FF?style=flat-square" alt="uv package manager" />
+  <img src="https://img.shields.io/badge/source-GitHub%20API-181717?style=flat-square" alt="GitHub API" />
+  <img src="https://img.shields.io/badge/notify-Discord-5865F2?style=flat-square" alt="Discord notifications" />
+  <img src="https://img.shields.io/badge/license-MIT-2EA043?style=flat-square" alt="MIT License" />
+</p>
 
-- 対象アカウント配下の公開リポジトリ一覧
-- 各リポジトリの直近 100 件の release 一覧
+## ✨ Overview
 
-`draft release` は通知対象にせず、公開された時点で初めて「新規 release」として扱います。
+`github-account-scanner` is a local-first Python CLI for watching a GitHub account such as `Sunwood-ai-labs`.
 
-直近 100 件に絞ることで、1 リポジトリにつき 1 API 呼び出しで release 監視を済ませています。今回の初版は「毎時スキャン」前提です。この前提なら通常の監視用途では十分ですが、1 回の実行間隔のあいだに同じリポジトリで 100 件を超える release が増える特殊ケースは想定していません。その可能性があるなら、監視頻度を上げるか、release のページネーション対応を追加してください。
+It tracks:
 
-## なぜ polling 方式か
+- newly created public repositories
+- newly published GitHub releases
+- optional Discord notifications with per-event threads
+- optional AgentAGI mention prompts for follow-up explainers
 
-GitHub は「他人のアカウント全体」に対して、そのまま使える webhook を提供していません。なので今回は GitHub REST API を定期的に叩いて、前回スナップショットとの差分を取る方式にしています。
+The repository is intentionally optimized for local scheduled runs instead of CI-based production monitoring.
 
-## 前提
+## 🔍 What It Monitors
 
-- Python は `uv` で実行します
-- release 監視まで有効にするなら `GITHUB_TOKEN` か `GH_TOKEN` の設定を強く推奨します
+- the full list of public repositories under a target user or organization
+- up to the latest `100` releases per repository
+- transitions from `draft release` to published release
 
-2026-03-21 時点で `Sunwood-ai-labs` は public repo が 707 件あります。unauthenticated の REST API は 1 時間あたり 60 リクエストなので、release まで含めた監視には足りません。ローカル実行でも `GITHUB_TOKEN` か `GH_TOKEN` を設定して使う前提です。
+That `100 release` window keeps the release scan to a single API request per repository. It is a practical tradeoff for recurring scans, but if one repository can publish more than `100` releases between runs, you should either scan more frequently or extend the pagination logic.
 
-このため、このツールは大規模アカウントを token なしでフルスキャンしようとした場合、途中で待ってから失敗するのではなく、事前チェックで止めるようにしています。
+## 🧠 Why Polling
 
-## セットアップ
+GitHub does not provide a ready-to-use webhook for monitoring another account's entire public repository surface.
+
+Because of that, this project uses periodic polling with the GitHub REST API and compares the latest snapshot against the saved local state.
+
+## ⚙️ Requirements
+
+- Python `3.11+`
+- `uv`
+- `GITHUB_TOKEN` or `GH_TOKEN` for large accounts
+
+As of March 21, 2026, `Sunwood-ai-labs` already had more than `700` public repositories. Unauthenticated GitHub REST API limits are too small for a complete repository-plus-release scan, so authenticated runs are strongly recommended.
+
+## 🚀 Quick Start
 
 ```powershell
 uv sync
 ```
 
-必要なら token を設定します。
+Set a GitHub token when needed:
 
 ```powershell
 $env:GITHUB_TOKEN = "ghp_xxx"
 ```
 
-## 使い方
-
-初回実行では baseline を作ります。初回は「既存のものを新規」とは扱いません。
+Create the initial baseline:
 
 ```powershell
 uv run github-scan check Sunwood-ai-labs
 ```
 
-明示的に出力先を指定する例です。
+Write the latest report explicitly:
 
 ```powershell
 uv run github-scan check Sunwood-ai-labs `
@@ -55,44 +84,71 @@ uv run github-scan check Sunwood-ai-labs `
   --markdown-report state/last-report.md
 ```
 
-## 出力
+## 🔔 Discord Notifications
 
-- `state/<account>.json`
-  前回までに観測済みのスナップショット
-- `state/last-report.json`
-  今回の差分結果
-- `state/last-report.md`
-  通知にそのまま使いやすい Markdown 版
+Add `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID` to `.env` or `.env.local` to send notifications into Discord.
 
-## ローカル運用
+When a change is detected, the notifier:
 
-このツールはローカル定期実行を前提にしています。Windows ならタスク スケジューラなどで `uv run github-scan check ...` を定期実行するのが素直です。
+- posts a compact parent message in the target channel
+- creates a dedicated thread for that event
+- posts a detailed embed inside the thread
 
-## Discord notification
+If you also set `DISCORD_EXPLAINER_USER_ID`, the notifier mentions that user in the thread and posts a structured GitHub-notification prompt that references:
 
-Discord にも通知したい場合は、`.env` か `.env.local` に `DISCORD_BOT_TOKEN` と `DISCORD_CHANNEL_ID` を追加してください。change 検知時は、親チャンネルに短い通知を出し、投稿ごとに thread を作成して、その中に日本語の Embed 詳細を送ります。
+- [`src/github_scan/prompts/discord_explainer_request.md`](./src/github_scan/prompts/discord_explainer_request.md)
+- [`src/github_scan/prompts/discord_explainer_repository.md`](./src/github_scan/prompts/discord_explainer_repository.md)
+- [`src/github_scan/prompts/discord_explainer_release.md`](./src/github_scan/prompts/discord_explainer_release.md)
 
-AgentAGI など別の Discord Bot に thread 内で解説依頼も出したい場合は、`DISCORD_EXPLAINER_USER_ID` も設定してください。通知後にその user id へメンションしつつ、`sunwood-community skill` を使った GitHub更新通知向けの解説依頼プロンプトを thread 内へ投稿します。現在の prompt では、生成される投稿文章を英語で作るようにも指定しています。本文テンプレートは [discord_explainer_request.md](/D:/Prj/Github-scan/src/github_scan/prompts/discord_explainer_request.md) を土台にしつつ、イベント部分を [discord_explainer_repository.md](/D:/Prj/Github-scan/src/github_scan/prompts/discord_explainer_repository.md) と [discord_explainer_release.md](/D:/Prj/Github-scan/src/github_scan/prompts/discord_explainer_release.md) に分けて管理しています。
+That prompt currently asks the downstream bot to prepare the outgoing post in English.
 
-互換用に `DISCORD_WEBHOOK_URL` も残していますが、`DISCORD_BOT_TOKEN` と `DISCORD_CHANNEL_ID` がある場合は Bot API を優先します。
+Those prompt templates assume the downstream AgentAGI environment can resolve the referenced `skills/sunwood-community/prompts/*` paths. If your explainer bot runs elsewhere, adjust those prompt paths before enabling explainer mentions.
 
-ローカルで通知文面だけ確認したい場合は、次の dry-run が使えます。
+The legacy `DISCORD_WEBHOOK_URL` path is still available, but Bot API delivery is preferred whenever bot token settings exist.
+
+Preview the notification payload locally:
 
 ```powershell
 uv run github-scan notify-discord --report-file state/last-report.json --dry-run
 ```
 
-## ローカル確認の流れ
+## 📁 Output Files
+
+- `state/<account>.json`
+  Saved snapshot used for change detection
+- `state/last-report.json`
+  Latest machine-readable diff result
+- `state/last-report.md`
+  Latest Markdown summary for operator review
+
+State artifacts are treated as runtime output and are intentionally ignored by git.
+
+## 🧪 Local Development
+
+Run the main verification flow:
+
+```powershell
+uv run python -m unittest discover -s tests
+uv run github-scan --help
+```
+
+Typical manual end-to-end loop:
 
 ```powershell
 uv run github-scan check Sunwood-ai-labs
-uv run python -m unittest discover -s tests
+uv run github-scan notify-discord --report-file state/last-report.json
 ```
 
-## 参考
+## ⚠️ Operating Notes
 
-- Repositories REST API: https://docs.github.com/rest/repos/repos
-- Releases REST API: https://docs.github.com/rest/releases
-- Actions schedule event: https://docs.github.com/en/enterprise-cloud@latest/actions/reference/events-that-trigger-workflows
-- REST API rate limits: https://docs.github.com/enterprise-cloud@latest/rest/overview/rate-limits-for-the-rest-api
-- Actions limits (`GITHUB_TOKEN`): https://docs.github.com/en/enterprise-cloud@latest/actions/reference/actions-limits
+- this project is designed for local recurring execution, such as Windows Task Scheduler
+- GitHub Actions is used only for validation, not as the production watcher runtime
+- repository and release detection is public-surface only
+- draft releases are ignored until they become published
+
+## 📚 References
+
+- [Repositories REST API](https://docs.github.com/rest/repos/repos)
+- [Releases REST API](https://docs.github.com/rest/releases)
+- [REST API rate limits](https://docs.github.com/enterprise-cloud@latest/rest/overview/rate-limits-for-the-rest-api)
+- [Actions limits (`GITHUB_TOKEN`)](https://docs.github.com/en/enterprise-cloud@latest/actions/reference/actions-limits)

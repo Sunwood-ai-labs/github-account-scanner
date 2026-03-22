@@ -2,3 +2,8 @@
 __pycache__/
 .pytest_cache/
 *.pyc
+.env
+.env.local
+state/*.json
+state/*.md
+!state/.gitkeep

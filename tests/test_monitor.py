@@ -2,6 +2,13 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from github_scan.discord_webhook import (
+    build_discord_dry_run_text,
+    build_discord_payload,
+    build_explainer_request,
+    build_thread_name,
+    build_thread_starter_content,
+)
 from github_scan.monitor import (
     GitHubApiError,
     GitHubClient,
@@ -264,6 +271,205 @@ class MonitorTests(unittest.TestCase):
         self.assertIn("## New releases", markdown)
         self.assertIn("Sunwood-ai-labs/alpha", markdown)
         self.assertIn("`v1.0.0`", markdown)
+
+    def test_discord_payload_includes_repo_and_release(self) -> None:
+        repo = sample_repository(1, "alpha", "2026-03-18T00:00:00Z")
+        release = sample_release(10, "v1.0.0", "2026-03-18T01:00:00Z")
+        report = build_report_document(
+            {
+                "checked_at": "2026-03-21T00:00:00Z",
+                "bootstrap": False,
+                "changed": True,
+                "account": {
+                    "login": "Sunwood-ai-labs",
+                    "type": "User",
+                    "html_url": "https://github.com/Sunwood-ai-labs",
+                    "public_repos": 1,
+                    "release_window": RECENT_RELEASE_WINDOW,
+                },
+                "new_repositories": [repo],
+                "new_releases": [{"repository": repo, "release": release}],
+            },
+            request_count=5,
+            token_used=True,
+            rate_limit={"min_remaining": 995},
+        )
+
+        payload = build_discord_payload(report, max_items=5)
+        embed = payload["embeds"][0]
+        field_values = "\n".join(field["value"] for field in embed["fields"])
+
+        self.assertEqual(embed["title"], "GitHub アカウント監視レポート")
+        self.assertIn("新しい更新を検知しました", embed["description"])
+        self.assertIn("Sunwood-ai-labs/alpha", field_values)
+        self.assertIn("v1.0.0", field_values)
+
+    def test_discord_dry_run_text_is_japanese_json(self) -> None:
+        report = build_report_document(
+            {
+                "checked_at": "2026-03-21T00:00:00Z",
+                "bootstrap": True,
+                "changed": False,
+                "account": {
+                    "login": "Sunwood-ai-labs",
+                    "type": "User",
+                    "html_url": "https://github.com/Sunwood-ai-labs",
+                    "public_repos": 1,
+                    "release_window": RECENT_RELEASE_WINDOW,
+                },
+                "new_repositories": [],
+                "new_releases": [],
+            },
+            request_count=1,
+            token_used=True,
+            rate_limit={"min_remaining": 999},
+        )
+
+        dry_run = build_discord_dry_run_text(report)
+
+        self.assertIn("GitHub アカウント監視レポート", dry_run)
+        self.assertIn("初回ベースラインを作成しました", dry_run)
+
+    def test_thread_metadata_is_japanese(self) -> None:
+        repo = sample_repository(1, "alpha", "2026-03-18T00:00:00Z")
+        release = sample_release(10, "v1.0.0", "2026-03-18T01:00:00Z")
+        report = build_report_document(
+            {
+                "checked_at": "2026-03-21T11:37:00Z",
+                "bootstrap": False,
+                "changed": True,
+                "account": {
+                    "login": "Sunwood-ai-labs",
+                    "type": "User",
+                    "html_url": "https://github.com/Sunwood-ai-labs",
+                    "public_repos": 709,
+                    "release_window": RECENT_RELEASE_WINDOW,
+                },
+                "new_repositories": [repo],
+                "new_releases": [{"repository": repo, "release": release}],
+            },
+            request_count=1,
+            token_used=True,
+            rate_limit={"min_remaining": 999},
+        )
+
+        thread_name = build_thread_name(report)
+        starter = build_thread_starter_content(report)
+
+        self.assertIn("Sunwood-ai-labs", thread_name)
+        self.assertIn("監視", thread_name)
+        self.assertIn("Sunwood-ai-labs: 新しい更新を検知しました", starter)
+        self.assertIn("Repo: Sunwood-ai-labs/alpha", starter)
+        self.assertIn("Release: Sunwood-ai-labs/alpha / v1.0.0", starter)
+        self.assertIn("新しい更新を検知しました", starter)
+
+    def test_explainer_request_mentions_user_and_event(self) -> None:
+        repo = sample_repository(1, "alpha", "2026-03-18T00:00:00Z")
+        release = sample_release(10, "v1.0.0", "2026-03-18T01:00:00Z")
+        report = build_report_document(
+            {
+                "checked_at": "2026-03-21T11:37:00Z",
+                "bootstrap": False,
+                "changed": True,
+                "account": {
+                    "login": "Sunwood-ai-labs",
+                    "type": "User",
+                    "html_url": "https://github.com/Sunwood-ai-labs",
+                    "public_repos": 709,
+                    "release_window": RECENT_RELEASE_WINDOW,
+                },
+                "new_repositories": [repo],
+                "new_releases": [{"repository": repo, "release": release}],
+            },
+            request_count=1,
+            token_used=True,
+            rate_limit={"min_remaining": 999},
+        )
+
+        prompt = build_explainer_request(report, "123456789012345678")
+
+        self.assertIn("<@123456789012345678>", prompt)
+        self.assertIn("sunwood-community skill", prompt)
+        self.assertIn("GitHub更新通知向けの解説投稿", prompt)
+        self.assertIn("shared posting rules:", prompt)
+        self.assertIn("shared explainer requirements:", prompt)
+        self.assertIn("shared result requirements:", prompt)
+        self.assertIn("投稿文章は英語で作成してください。", prompt)
+        self.assertIn("監視対象: Sunwood-ai-labs", prompt)
+        self.assertIn("チェック時刻:", prompt)
+        self.assertIn("## 新しく作成された Repository", prompt)
+        self.assertIn("## 新しく公開された Release", prompt)
+        self.assertIn("Release: Sunwood-ai-labs/alpha / v1.0.0", prompt)
+        self.assertIn("この Repository について:", prompt)
+        self.assertIn("この Release について:", prompt)
+        self.assertIn("関連URL:", prompt)
+        self.assertIn("まず GitHub イベントの調査レポート Markdown を作成し、その内容を元に図解画像を作ってください。", prompt)
+        self.assertIn("投稿した解説のURL", prompt)
+        self.assertNotIn("{mention}", prompt)
+        self.assertNotIn("{event_sections}", prompt)
+        self.assertNotIn("{account_login}", prompt)
+        self.assertNotIn("{account_url}", prompt)
+        self.assertNotIn("{checked_at}", prompt)
+        self.assertNotIn("{related_url_lines}", prompt)
+        self.assertNotIn("{repository_lines}", prompt)
+        self.assertNotIn("{release_lines}", prompt)
+
+    def test_explainer_request_repo_only_uses_repository_template(self) -> None:
+        repo = sample_repository(1, "alpha", "2026-03-18T00:00:00Z")
+        report = build_report_document(
+            {
+                "checked_at": "2026-03-21T11:37:00Z",
+                "bootstrap": False,
+                "changed": True,
+                "account": {
+                    "login": "Sunwood-ai-labs",
+                    "type": "User",
+                    "html_url": "https://github.com/Sunwood-ai-labs",
+                    "public_repos": 709,
+                    "release_window": RECENT_RELEASE_WINDOW,
+                },
+                "new_repositories": [repo],
+                "new_releases": [],
+            },
+            request_count=1,
+            token_used=True,
+            rate_limit={"min_remaining": 999},
+        )
+
+        prompt = build_explainer_request(report, "123456789012345678")
+
+        self.assertIn("## 新しく作成された Repository", prompt)
+        self.assertIn("Repo", prompt)
+        self.assertNotIn("## 新しく公開された Release", prompt)
+
+    def test_explainer_request_release_only_uses_release_template(self) -> None:
+        repo = sample_repository(1, "alpha", "2026-03-18T00:00:00Z")
+        release = sample_release(10, "v1.0.0", "2026-03-18T01:00:00Z")
+        report = build_report_document(
+            {
+                "checked_at": "2026-03-21T11:37:00Z",
+                "bootstrap": False,
+                "changed": True,
+                "account": {
+                    "login": "Sunwood-ai-labs",
+                    "type": "User",
+                    "html_url": "https://github.com/Sunwood-ai-labs",
+                    "public_repos": 709,
+                    "release_window": RECENT_RELEASE_WINDOW,
+                },
+                "new_repositories": [],
+                "new_releases": [{"repository": repo, "release": release}],
+            },
+            request_count=1,
+            token_used=True,
+            rate_limit={"min_remaining": 999},
+        )
+
+        prompt = build_explainer_request(report, "123456789012345678")
+
+        self.assertIn("## 新しく公開された Release", prompt)
+        self.assertIn("Release: Sunwood-ai-labs/alpha / v1.0.0", prompt)
+        self.assertNotIn("## 新しく作成された Repository", prompt)
 
 
 if __name__ == "__main__":

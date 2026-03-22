@@ -7,3 +7,4 @@ __pycache__/
 state/*.json
 state/*.md
 !state/.gitkeep
+logs/scheduled-monitor/

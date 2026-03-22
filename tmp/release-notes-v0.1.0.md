@@ -24,6 +24,10 @@ Initial release covering the full shipped history through `v0.1.0`.
 - `uv run python -m unittest discover -s tests`
 - `uv run github-scan --help`
 - `uv build`
+- installed the built wheel into an isolated virtual environment with `uv pip install`
+- ran the installed `github-scan --help`
+- ran the installed `github-scan check octocat ...` to create an initial baseline report
+- ran the installed `github-scan notify-discord --report-file ... --dry-run`
 
 ## Notes
 

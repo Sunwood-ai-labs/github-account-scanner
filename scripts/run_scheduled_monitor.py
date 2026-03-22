@@ -13,7 +13,19 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from github_scan.scheduler import collect_report, load_env_files, send_report_to_discord, should_notify
+from github_scan.scheduler import (
+    collect_report,
+    load_env_files,
+    send_report_to_discord,
+    should_notify_with_filters,
+)
+
+
+def _env_flag(name: str, *, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,6 +67,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Render the Discord payload instead of sending it.",
     )
+    parser.add_argument(
+        "--notify-releases-only",
+        action=argparse.BooleanOptionalAction,
+        default=_env_flag("DISCORD_NOTIFY_RELEASES_ONLY", default=False),
+        help="Only send Discord notifications when the report contains new releases.",
+    )
+    parser.add_argument(
+        "--discord-profile",
+        choices=("production", "test"),
+        default=os.getenv("DISCORD_PROFILE", "production"),
+        help="Discord delivery profile. Test mode does not inherit production mentions.",
+    )
     return parser
 
 
@@ -89,9 +113,15 @@ def main() -> int:
             f"  repos={stats['new_repository_count']} releases={stats['new_release_count']} requests={stats['request_count']}",
         ]
 
-        if should_notify(report, notify_on_bootstrap=args.notify_on_bootstrap):
+        if should_notify_with_filters(
+            report,
+            notify_on_bootstrap=args.notify_on_bootstrap,
+            release_only=args.notify_releases_only,
+            release_count=int(stats["new_release_count"]),
+        ):
             result = send_report_to_discord(
                 report,
+                profile=args.discord_profile,
                 max_items=args.max_items,
                 dry_run=args.dry_run_notify,
             )
@@ -103,6 +133,8 @@ def main() -> int:
                 lines.append("  notify=dry-run")
         else:
             lines.append("  notify=skipped")
+        lines.append(f"  notify_releases_only={args.notify_releases_only}")
+        lines.append(f"  discord_profile={args.discord_profile}")
 
         append_log(lines)
         for line in lines:

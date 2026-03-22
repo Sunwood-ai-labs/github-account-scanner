@@ -2,7 +2,12 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from github_scan.scheduler import load_env_files, should_notify
+from github_scan.scheduler import (
+    load_env_files,
+    resolve_discord_delivery_config,
+    should_notify,
+    should_notify_with_filters,
+)
 from github_scan.task_scheduler import build_create_task_command, build_run_task_command
 
 
@@ -14,6 +19,62 @@ class SchedulerTests(unittest.TestCase):
     def test_bootstrap_notification_is_opt_in(self) -> None:
         self.assertFalse(should_notify({"changed": False, "bootstrap": True}))
         self.assertTrue(should_notify({"changed": False, "bootstrap": True}, notify_on_bootstrap=True))
+
+    def test_release_only_notification_skips_repository_only_changes(self) -> None:
+        report = {
+            "changed": True,
+            "bootstrap": False,
+            "statistics": {"new_release_count": 0},
+            "new_releases": [],
+        }
+        self.assertFalse(should_notify_with_filters(report, release_only=True))
+
+    def test_release_only_notification_allows_release_changes(self) -> None:
+        report = {
+            "changed": True,
+            "bootstrap": False,
+            "statistics": {"new_release_count": 1},
+            "new_releases": [{"repository": {}, "release": {}}],
+        }
+        self.assertTrue(should_notify_with_filters(report, release_only=True))
+
+    def test_test_profile_does_not_inherit_production_mention(self) -> None:
+        config = resolve_discord_delivery_config(
+            profile="test",
+            environ={
+                "DISCORD_BOT_TOKEN": "bot-token",
+                "DISCORD_CHANNEL_ID": "12345",
+                "DISCORD_EXPLAINER_USER_ID": "99999",
+            },
+        )
+
+        self.assertEqual(config["bot_token"], "bot-token")
+        self.assertEqual(config["channel_id"], "12345")
+        self.assertIsNone(config["mention_user_id"])
+
+    def test_production_profile_inherits_generic_mention(self) -> None:
+        config = resolve_discord_delivery_config(
+            profile="production",
+            environ={
+                "DISCORD_BOT_TOKEN": "bot-token",
+                "DISCORD_CHANNEL_ID": "12345",
+                "DISCORD_EXPLAINER_USER_ID": "99999",
+            },
+        )
+
+        self.assertEqual(config["mention_user_id"], "99999")
+
+    def test_test_profile_prefers_test_specific_channel(self) -> None:
+        config = resolve_discord_delivery_config(
+            profile="test",
+            environ={
+                "DISCORD_BOT_TOKEN": "bot-token",
+                "DISCORD_CHANNEL_ID": "12345",
+                "DISCORD_TEST_CHANNEL_ID": "77777",
+            },
+        )
+
+        self.assertEqual(config["channel_id"], "77777")
 
     def test_load_env_files_keeps_existing_values(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

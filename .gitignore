@@ -8,3 +8,7 @@ state/*.json
 state/*.md
 !state/.gitkeep
 logs/scheduled-monitor/
+logs/github-app-webhook/
+workers/github-app-discord-bot/.dev.vars
+workers/github-app-discord-bot/.wrangler/
+workers/github-app-discord-bot/node_modules/

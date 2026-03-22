@@ -1,0 +1,9 @@
+name = "github-app-discord-bot"
+main = "src/index.js"
+compatibility_date = "2026-03-23"
+
+# Optional: bind a KV namespace to suppress duplicate deliveries and release replays.
+# [[kv_namespaces]]
+# binding = "WEBHOOK_STATE"
+# id = "replace_with_kv_namespace_id"
+

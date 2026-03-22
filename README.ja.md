@@ -103,9 +103,27 @@ Windows Task Scheduler の登録は Python helper から行えます。
 
 これで `github-account-scanner-monitor` という task が作成され、`15` 分おきに repo ローカルの Python 環境から監視が走ります。
 
+リリース時のみ通知したい場合は、スケジューラ実行時に以下を指定します（環境変数方式も利用可）。
+
+```powershell
+$env:DISCORD_NOTIFY_RELEASES_ONLY = "true"
+.venv\Scripts\python.exe .\scripts\run_scheduled_monitor.py --notify-releases-only
+```
+
+通知プロファイルを `production` / `test` で分けたい場合は、以下のように使えます。
+
+```powershell
+.venv\Scripts\python.exe .\scripts\run_scheduled_monitor.py --discord-profile production
+.venv\Scripts\python.exe .\scripts\run_scheduled_monitor.py --discord-profile test
+```
+
 ## 🔔 Discord 通知
 
 `.env` または `.env.local` に `DISCORD_BOT_TOKEN` と `DISCORD_CHANNEL_ID` を設定すると、検知結果を Discord に送れます。
+
+`DISCORD_CHANNEL_ID` には、チャンネルの ID 文字列（`1234567890...`）または Discord のチャンネル URL（例: `https://discord.com/channels/1234567890/1234567890`）を指定できます。
+
+`test` と `production` を分けたい場合は `DISCORD_TEST_*` / `DISCORD_PRODUCTION_*` を使えます。`test` 側は `DISCORD_TEST_MENTION_USER_ID` を明示しない限り、本番用メンションを引き継ぎません。
 
 change を検知したときは次の流れで通知します。
 
@@ -171,3 +189,67 @@ uv run github-scan notify-discord --report-file state/last-report.json
 - [Releases REST API](https://docs.github.com/rest/releases)
 - [REST API rate limits](https://docs.github.com/enterprise-cloud@latest/rest/overview/rate-limits-for-the-rest-api)
 - [Actions limits (`GITHUB_TOKEN`)](https://docs.github.com/en/enterprise-cloud@latest/actions/reference/actions-limits)
+
+## GitHub App Webhook Mode
+
+GitHub App をインストールできる環境では、こちらが優先の運用モードです。
+
+GitHub App 側では以下を設定します。
+
+- `Webhook` を有効化し、このサービスを指す公開 URL を設定
+- `Webhook secret` を `GITHUB_APP_WEBHOOK_SECRET` と一致させる
+- repository permission `Contents: Read`
+- subscribed webhook event `Release`
+- 監視したい repository 群へインストール
+
+Webhook 受信サーバーは次で起動できます。
+
+```powershell
+uv run github-scan serve-github-app-webhook `
+  --host 0.0.0.0 `
+  --port 8787 `
+  --path /github/webhook `
+  --discord-profile production
+```
+
+## Cloudflare Worker Deployment
+
+GitHub App の webhook URL を公開運用するなら、`workers/github-app-discord-bot` の Cloudflare Worker 版を主線として使います。
+
+この構成は [`onizuka-agi-co/github-app-worker`](https://github.com/onizuka-agi-co/github-app-worker) を参考にしつつ、`pull_request -> PR comment` ではなく `release -> Discord Bot API` に合わせて組み替えています。
+
+対応している内容:
+
+- `GitHub App -> webhook -> Discord Bot API`
+- release イベントだけを通知
+- `test` / `production` プロファイル切り替え
+- `test` では production 用メンションを継承しない
+- Cloudflare KV を使った任意の重複抑止
+
+ローカル開発:
+
+```powershell
+cd workers/github-app-discord-bot
+copy .dev.vars.example .dev.vars
+npm install
+npm run dev
+```
+
+デプロイ:
+
+```powershell
+cd workers/github-app-discord-bot
+npm install
+npm run deploy
+```
+
+GitHub App 側の設定:
+
+- `Webhook URL`: `https://<your-worker>.workers.dev/webhook`
+- `Webhook secret`: `GITHUB_APP_WEBHOOK_SECRET` と同じ値
+- subscribed webhook event: `Release`
+- repository permission: `Contents: Read`
+
+release 通知だけであれば GitHub API を追加で叩かないので、GitHub App private key は不要です。
+
+通知実験では `--discord-profile test` を使うと、本番用メンションを継承しません。

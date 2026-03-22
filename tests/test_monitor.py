@@ -3,11 +3,13 @@ import tempfile
 import unittest
 
 from github_scan.discord_webhook import (
+    DiscordNotificationError,
     build_discord_dry_run_text,
     build_discord_payload,
     build_explainer_request,
     build_thread_name,
     build_thread_starter_content,
+    normalize_discord_channel_id,
 )
 from github_scan.monitor import (
     GitHubApiError,
@@ -362,6 +364,22 @@ class MonitorTests(unittest.TestCase):
         self.assertIn("Repo: Sunwood-ai-labs/alpha", starter)
         self.assertIn("Release: Sunwood-ai-labs/alpha / v1.0.0", starter)
         self.assertIn("新しい更新を検知しました", starter)
+
+    def test_normalize_discord_channel_id_accepts_raw_id_and_url(self) -> None:
+        self.assertEqual(normalize_discord_channel_id("1476217154004058143"), "1476217154004058143")
+        self.assertEqual(
+            normalize_discord_channel_id(
+                "https://discord.com/channels/1188045372526964796/1476217154004058143"
+            ),
+            "1476217154004058143",
+        )
+
+    def test_normalize_discord_channel_id_rejects_invalid_value(self) -> None:
+        with self.assertRaises(DiscordNotificationError):
+            normalize_discord_channel_id("https://example.com/not-discord")
+
+        with self.assertRaises(DiscordNotificationError):
+            normalize_discord_channel_id("   ")
 
     def test_explainer_request_mentions_user_and_event(self) -> None:
         repo = sample_repository(1, "alpha", "2026-03-18T00:00:00Z")

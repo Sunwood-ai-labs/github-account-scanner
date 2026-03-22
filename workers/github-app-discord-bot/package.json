@@ -1,0 +1,16 @@
+{
+  "name": "github-app-discord-bot-worker",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cloudflare Worker for GitHub App release webhooks -> Discord Bot API notifications",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.68.0"
+  }
+}

@@ -7,11 +7,11 @@ import sys
 
 from github_scan.discord_webhook import (
     DiscordNotificationError,
-    build_discord_dry_run_text,
-    build_discord_payload,
     load_report as load_discord_report,
-    post_to_discord,
-    post_via_discord_bot,
+)
+from github_scan.github_app_webhook import (
+    GitHubAppWebhookError,
+    serve_github_app_webhook,
 )
 from github_scan.monitor import (
     GitHubApiError,
@@ -23,6 +23,7 @@ from github_scan.monitor import (
     write_markdown_report,
     write_report_json,
 )
+from github_scan.scheduler import send_report_to_discord
 
 
 def _default_state_file(account: str) -> Path:
@@ -85,6 +86,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="JSON report created by the check command.",
     )
     discord_parser.add_argument(
+        "--discord-profile",
+        choices=("production", "test"),
+        default=os.getenv("DISCORD_PROFILE", "production"),
+        help="Discord delivery profile. Test mode does not inherit production mentions.",
+    )
+    discord_parser.add_argument(
         "--webhook-url",
         default=os.getenv("DISCORD_WEBHOOK_URL"),
         help="Discord webhook URL. Defaults to DISCORD_WEBHOOK_URL from the environment.",
@@ -97,7 +104,7 @@ def build_parser() -> argparse.ArgumentParser:
     discord_parser.add_argument(
         "--channel-id",
         default=os.getenv("DISCORD_CHANNEL_ID"),
-        help="Discord channel ID used as the parent channel for thread creation.",
+        help="Discord channel ID or Discord channel URL used as the parent channel for thread creation.",
     )
     discord_parser.add_argument(
         "--mention-user-id",
@@ -114,6 +121,61 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Print the Discord message instead of sending it.",
+    )
+
+    webhook_parser = subparsers.add_parser(
+        "serve-github-app-webhook",
+        help="Run a local GitHub App webhook server and forward release events to Discord.",
+    )
+    webhook_parser.add_argument(
+        "--host",
+        default=os.getenv("GITHUB_APP_WEBHOOK_HOST", "127.0.0.1"),
+        help="Host interface for the webhook server.",
+    )
+    webhook_parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.getenv("GITHUB_APP_WEBHOOK_PORT", "8787")),
+        help="Port for the webhook server.",
+    )
+    webhook_parser.add_argument(
+        "--path",
+        default=os.getenv("GITHUB_APP_WEBHOOK_PATH", "/github/webhook"),
+        help="Request path used by the GitHub App webhook.",
+    )
+    webhook_parser.add_argument(
+        "--webhook-secret",
+        default=os.getenv("GITHUB_APP_WEBHOOK_SECRET"),
+        help="GitHub App webhook secret. Defaults to GITHUB_APP_WEBHOOK_SECRET.",
+    )
+    webhook_parser.add_argument(
+        "--state-file",
+        type=Path,
+        default=Path("state") / "github-app-webhook.json",
+        help="State file used for delivery and release deduplication.",
+    )
+    webhook_parser.add_argument(
+        "--log-dir",
+        type=Path,
+        default=Path("logs") / "github-app-webhook",
+        help="Directory used for webhook request logs.",
+    )
+    webhook_parser.add_argument(
+        "--discord-profile",
+        choices=("production", "test"),
+        default=os.getenv("DISCORD_PROFILE", "production"),
+        help="Discord delivery profile. Test mode does not inherit production mentions.",
+    )
+    webhook_parser.add_argument(
+        "--max-items",
+        type=int,
+        default=5,
+        help="Maximum number of release items included in the Discord message.",
+    )
+    webhook_parser.add_argument(
+        "--dry-run-discord",
+        action="store_true",
+        help="Build the Discord payload but do not send it.",
     )
     return parser
 
@@ -179,25 +241,26 @@ def run_check(args: argparse.Namespace) -> int:
 
 def run_notify_discord(args: argparse.Namespace) -> int:
     report = load_discord_report(args.report_file)
-    payload = build_discord_payload(report, max_items=args.max_items)
+    result = send_report_to_discord(
+        report,
+        profile=args.discord_profile,
+        max_items=args.max_items,
+        dry_run=args.dry_run,
+        webhook_url=args.webhook_url,
+        bot_token=args.bot_token,
+        channel_id=args.channel_id,
+        mention_user_id=args.mention_user_id,
+    )
 
-    if args.dry_run:
-        print(build_discord_dry_run_text(report, max_items=args.max_items))
+    if result["mode"] == "dry-run":
+        print(result["preview"])
         return 0
 
-    if args.bot_token and args.channel_id:
-        result = post_via_discord_bot(
-            args.bot_token,
-            args.channel_id,
-            report,
-            payload,
-            mention_user_id=args.mention_user_id,
-        )
+    if result["mode"] == "bot":
         print(f"Discord thread notification sent. thread_id={result['thread_id']}")
         return 0
 
-    if args.webhook_url:
-        post_to_discord(args.webhook_url, payload)
+    if result["mode"] == "webhook":
         print("Discord webhook notification sent.")
         return 0
 
@@ -206,6 +269,21 @@ def run_notify_discord(args: argparse.Namespace) -> int:
         file=sys.stderr,
     )
     return 1
+
+
+def run_serve_github_app_webhook(args: argparse.Namespace) -> int:
+    serve_github_app_webhook(
+        host=args.host,
+        port=args.port,
+        webhook_path=args.path,
+        webhook_secret=args.webhook_secret or "",
+        state_file=args.state_file,
+        log_dir=args.log_dir,
+        discord_profile=args.discord_profile,
+        max_items=args.max_items,
+        dry_run_discord=args.dry_run_discord,
+    )
+    return 0
 
 
 def main() -> int:
@@ -217,11 +295,16 @@ def main() -> int:
             return run_check(args)
         if args.command == "notify-discord":
             return run_notify_discord(args)
+        if args.command == "serve-github-app-webhook":
+            return run_serve_github_app_webhook(args)
         parser.error(f"Unsupported command: {args.command}")
     except GitHubApiError as error:
         print(str(error), file=sys.stderr)
         return 1
     except DiscordNotificationError as error:
+        print(str(error), file=sys.stderr)
+        return 1
+    except GitHubAppWebhookError as error:
         print(str(error), file=sys.stderr)
         return 1
     return 0

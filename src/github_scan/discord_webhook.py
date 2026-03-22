@@ -5,6 +5,7 @@ from functools import lru_cache
 from importlib import resources
 import json
 from pathlib import Path
+import re
 from typing import Any
 from urllib.parse import quote
 from urllib.error import HTTPError, URLError
@@ -15,8 +16,29 @@ class DiscordNotificationError(RuntimeError):
     """Raised when a Discord webhook notification fails."""
 
 
+_DISCORD_CHANNEL_URL_RE = re.compile(
+    r"^https://(?:(?:ptb|canary)\.)?discord\.com/channels/\d+/(\d+)(?:/\d+)?/?$"
+)
+
+
 def load_report(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def normalize_discord_channel_id(value: str) -> str:
+    candidate = value.strip()
+    if not candidate:
+        raise DiscordNotificationError("Discord channel target is empty.")
+    if candidate.isdigit():
+        return candidate
+
+    match = _DISCORD_CHANNEL_URL_RE.match(candidate)
+    if match:
+        return match.group(1)
+
+    raise DiscordNotificationError(
+        "Discord channel target must be a channel ID or a Discord channel URL."
+    )
 
 
 def _parse_checked_at(checked_at: str) -> datetime:
@@ -333,9 +355,11 @@ def post_via_discord_bot(
     mention_user_id: str | None = None,
     timeout: float = 30.0,
 ) -> dict[str, Any]:
+    resolved_channel_id = normalize_discord_channel_id(channel_id)
+
     starter_message = _bot_request(
         "POST",
-        f"/channels/{quote(channel_id, safe='')}/messages",
+        f"/channels/{quote(resolved_channel_id, safe='')}/messages",
         token,
         payload={
             "content": build_thread_starter_content(report),
@@ -346,7 +370,7 @@ def post_via_discord_bot(
 
     thread = _bot_request(
         "POST",
-        f"/channels/{quote(channel_id, safe='')}/messages/{quote(starter_message['id'], safe='')}/threads",
+        f"/channels/{quote(resolved_channel_id, safe='')}/messages/{quote(starter_message['id'], safe='')}/threads",
         token,
         payload={
             "name": build_thread_name(report),
@@ -380,7 +404,7 @@ def post_via_discord_bot(
         )
 
     return {
-        "channel_id": channel_id,
+        "channel_id": resolved_channel_id,
         "starter_message_id": starter_message["id"],
         "thread_id": thread["id"],
         "thread_name": thread.get("name") or build_thread_name(report),

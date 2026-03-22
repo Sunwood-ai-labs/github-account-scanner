@@ -33,7 +33,71 @@ It tracks:
 - optional Discord notifications with per-event threads
 - optional AgentAGI mention prompts for follow-up explainers
 
-The repository is intentionally optimized for local scheduled runs instead of CI-based production monitoring.
+The repository still ships the original local-first polling CLI, but GitHub App webhook delivery is now the preferred path when you control the repositories.
+
+## GitHub App Webhook Mode
+
+GitHub App webhook mode is the preferred path when you control the repositories you want to monitor.
+
+Configure the GitHub App with:
+
+- `Webhook` enabled and a public webhook URL that points to this service
+- a `Webhook secret` that matches `GITHUB_APP_WEBHOOK_SECRET`
+- repository permission `Contents: Read`
+- subscribed webhook event `Release`
+- installation scope set to the repositories you want to monitor
+
+Run the webhook receiver:
+
+```powershell
+uv run github-scan serve-github-app-webhook `
+  --host 0.0.0.0 `
+  --port 8787 `
+  --path /github/webhook `
+  --discord-profile production
+```
+
+Use `--discord-profile test` when you want to exercise the route without inheriting production mentions.
+
+## Cloudflare Worker Deployment
+
+For a real GitHub App webhook URL, the preferred runtime is the Worker implementation under [`workers/github-app-discord-bot`](./workers/github-app-discord-bot).
+
+That Worker layout was shaped after [`onizuka-agi-co/github-app-worker`](https://github.com/onizuka-agi-co/github-app-worker), but adapted from `pull_request -> PR comment` to `release -> Discord Bot API`.
+
+It handles:
+
+- `GitHub App -> webhook -> Discord Bot API`
+- release-only event filtering
+- `test` / `production` delivery profiles
+- no inherited production mention in `test`
+- optional KV-based deduplication for redeliveries
+
+Quick start:
+
+```powershell
+cd workers/github-app-discord-bot
+copy .dev.vars.example .dev.vars
+npm install
+npm run dev
+```
+
+Deploy:
+
+```powershell
+cd workers/github-app-discord-bot
+npm install
+npm run deploy
+```
+
+Configure the GitHub App with:
+
+- `Webhook URL`: `https://<your-worker>.workers.dev/webhook`
+- `Webhook secret`: same value as `GITHUB_APP_WEBHOOK_SECRET`
+- repository event subscription: `Release`
+- repository permission: `Contents: Read`
+
+This Worker does not call the GitHub API for release notifications, so it does not need the GitHub App private key.
 
 ## 🔍 What It Monitors
 
@@ -47,7 +111,9 @@ That `100 release` window keeps the release scan to a single API request per rep
 
 GitHub does not provide a ready-to-use webhook for monitoring another account's entire public repository surface.
 
-Because of that, this project uses periodic polling with the GitHub REST API and compares the latest snapshot against the saved local state.
+This section describes the legacy fallback path.
+
+Because of that, this project also includes periodic polling with the GitHub REST API and compares the latest snapshot against the saved local state. Use this only when GitHub App installation is not possible.
 
 ## ⚙️ Requirements
 
@@ -103,9 +169,27 @@ Register the Windows Scheduled Task with the Python helper:
 
 That creates a task named `github-account-scanner-monitor` which launches the repo-local Python environment on a `15` minute cadence.
 
+Release-only notification mode can be enabled in the scheduled runner:
+
+```powershell
+$env:DISCORD_NOTIFY_RELEASES_ONLY = "true"
+.venv\Scripts\python.exe .\scripts\run_scheduled_monitor.py --notify-releases-only
+```
+
+Test and production delivery profiles are also available:
+
+```powershell
+.venv\Scripts\python.exe .\scripts\run_scheduled_monitor.py --discord-profile production
+.venv\Scripts\python.exe .\scripts\run_scheduled_monitor.py --discord-profile test
+```
+
 ## 🔔 Discord Notifications
 
 Add `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID` to `.env` or `.env.local` to send notifications into Discord.
+
+`DISCORD_CHANNEL_ID` accepts either a raw channel ID (`1234567890...`) or a Discord channel URL (for example: `https://discord.com/channels/1234567890/1234567890`).
+
+If you want separate test and production paths, use `DISCORD_TEST_*` and `DISCORD_PRODUCTION_*` variables. Test delivery does not inherit production mentions unless `DISCORD_TEST_MENTION_USER_ID` is explicitly set.
 
 When a change is detected, the notifier:
 

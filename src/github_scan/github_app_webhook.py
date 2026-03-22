@@ -55,7 +55,7 @@ def is_release_publication_event(
         return False
 
     action = payload.get("action")
-    if isinstance(action, str) and action not in {"created", "published", "released", "prereleased"}:
+    if action != "published":
         return False
 
     if bool(release.get("draft", False)):

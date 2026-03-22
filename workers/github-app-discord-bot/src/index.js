@@ -147,7 +147,9 @@ function isReleasePublishedEvent(eventName, payload, { includePrereleases = true
     return false;
   }
   const action = cleanString(payload.action);
-  if (action && !["created", "published", "released", "prereleased"].includes(action)) {
+  // GitHub can emit multiple release activity types around a single publish.
+  // We only notify on the canonical published action to avoid double delivery.
+  if (action !== "published") {
     return false;
   }
   if (Boolean(release.draft)) {

@@ -100,6 +100,8 @@ test("verifySignature validates signed payloads", async () => {
 
 test("isReleasePublishedEvent only accepts published non-draft releases", () => {
   assert.equal(isReleasePublishedEvent("release", sampleReleasePayload()), true);
+  assert.equal(isReleasePublishedEvent("release", sampleReleasePayload({ action: "created" })), false);
+  assert.equal(isReleasePublishedEvent("release", sampleReleasePayload({ action: "released" })), false);
   assert.equal(isReleasePublishedEvent("release", sampleReleasePayload({ draft: true })), false);
   assert.equal(isReleasePublishedEvent("release", sampleReleasePayload({ action: "edited" })), false);
 });

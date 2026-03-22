@@ -77,10 +77,16 @@ class GitHubAppWebhookTests(unittest.TestCase):
 
     def test_release_publication_event_requires_non_draft_published_release(self) -> None:
         self.assertTrue(is_release_publication_event("release", sample_release_payload()))
-        self.assertTrue(
+        self.assertFalse(
             is_release_publication_event(
                 "release",
                 sample_release_payload(action="created"),
+            )
+        )
+        self.assertFalse(
+            is_release_publication_event(
+                "release",
+                sample_release_payload(action="released"),
             )
         )
         self.assertFalse(

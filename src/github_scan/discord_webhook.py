@@ -239,6 +239,29 @@ def _build_explainer_release_lines(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _build_explainer_related_url_lines(report: dict[str, Any]) -> str:
+    lines = [f"- Account: {report['account']['html_url']}"]
+    seen: set[str] = {report["account"]["html_url"]}
+
+    for repo in report.get("new_repositories", [])[:3]:
+        url = repo["html_url"]
+        if url not in seen:
+            lines.append(f"- Repository: {url}")
+            seen.add(url)
+
+    for item in report.get("new_releases", [])[:3]:
+        repo_url = item["repository"]["html_url"]
+        release_url = item["release"]["html_url"]
+        if repo_url not in seen:
+            lines.append(f"- Repository: {repo_url}")
+            seen.add(repo_url)
+        if release_url not in seen:
+            lines.append(f"- Release: {release_url}")
+            seen.add(release_url)
+
+    return "\n".join(lines)
+
+
 def build_explainer_request(report: dict[str, Any], mention_user_id: str) -> str:
     sections: list[str] = []
 
@@ -261,7 +284,11 @@ def build_explainer_request(report: dict[str, Any], mention_user_id: str) -> str
 
     return _load_explainer_template("discord_explainer_request.md").format(
         mention=f"<@{mention_user_id}>",
+        account_login=report["account"]["login"],
+        account_url=report["account"]["html_url"],
+        checked_at=_checked_at_jst(report),
         event_sections="\n\n".join(sections),
+        related_url_lines=_build_explainer_related_url_lines(report),
     )
 
 

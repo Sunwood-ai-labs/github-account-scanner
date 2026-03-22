@@ -1,21 +1,24 @@
 {mention}
 
-下記の GitHub イベントについて、sunwood-community skillを使って引用リツイート解説してください。
+sunwood-community skillを使って、GitHub更新通知向けの解説投稿を作成してください。
+
+最初に、次の prompt を読んでください。
+shared posting rules: skills/sunwood-community/prompts/shared_posting_rules.md
+shared explainer requirements: skills/sunwood-community/prompts/shared_explainer_requirements.md
+shared result requirements: skills/sunwood-community/prompts/shared_result_requirements.md
+
+対象情報:
+- 監視対象: {account_login}
+- アカウントURL: {account_url}
+- チェック時刻: {checked_at}
 
 {event_sections}
 
-解説作成の手順:
-1. イベント内容を分析（キーワード、トピック、技術用語を抽出）
-2. Web検索で関連する公式情報・技術文書・論文を収集
-3. 文脈を理解した充実した解説を作成
+関連URL:
+{related_url_lines}
 
-解説の要件:
-- 文字数制限なし（課金ユーザー）
-- 1文は短めに（読みやすさ重視）
-- 具体例や数値を含める
-- 公式情報源を参照
-- 初心者にもわかりやすく
+まず GitHub イベントの調査レポート Markdown を作成し、その内容を元に図解画像を作ってください。
 
 結果には必ず:
-- 投稿したリツイートのURL
+- 投稿した解説のURL
 - 解説のポイントまとめ

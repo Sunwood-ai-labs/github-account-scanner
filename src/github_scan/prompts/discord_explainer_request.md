@@ -7,6 +7,9 @@ shared posting rules: skills/sunwood-community/prompts/shared_posting_rules.md
 shared explainer requirements: skills/sunwood-community/prompts/shared_explainer_requirements.md
 shared result requirements: skills/sunwood-community/prompts/shared_result_requirements.md
 
+投稿ルール:
+- 投稿文章は英語で作成してください。
+
 対象情報:
 - 監視対象: {account_login}
 - アカウントURL: {account_url}

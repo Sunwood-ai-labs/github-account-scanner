@@ -394,6 +394,7 @@ class MonitorTests(unittest.TestCase):
         self.assertIn("shared posting rules:", prompt)
         self.assertIn("shared explainer requirements:", prompt)
         self.assertIn("shared result requirements:", prompt)
+        self.assertIn("投稿文章は英語で作成してください。", prompt)
         self.assertIn("監視対象: Sunwood-ai-labs", prompt)
         self.assertIn("チェック時刻:", prompt)
         self.assertIn("## 新しく作成された Repository", prompt)

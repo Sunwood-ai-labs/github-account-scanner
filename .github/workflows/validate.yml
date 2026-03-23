@@ -13,28 +13,22 @@ on:
       - develop
 
 jobs:
-  test:
+  test-worker:
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          python-version: "3.11"
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: workers/github-app-discord-bot/package-lock.json
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
+      - name: Install Worker dependencies
+        run: npm --prefix workers/github-app-discord-bot ci
 
-      - name: Install dependencies
-        run: uv sync --frozen
-
-      - name: Run unit tests
-        run: uv run python -m unittest discover -s tests
-
-      - name: Verify CLI entrypoint
-        run: uv run github-scan --help
+      - name: Run Worker tests
+        run: npm test

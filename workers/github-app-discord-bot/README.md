@@ -19,6 +19,8 @@ This worker is based on the same deployment shape as [`onizuka-agi-co/github-app
 - when a mention user is configured, posts the structured AgentAGI explainer prompt into the release thread
 - can optionally dedupe deliveries via Cloudflare KV
 
+The AgentAGI explainer prompt is an optional downstream integration. It references external `skills/sunwood-community/prompts/*` paths and assumes the mentioned bot can resolve them.
+
 ## Required GitHub App Settings
 
 - `Webhook` enabled
@@ -68,6 +70,20 @@ npx wrangler secret put WORKER_LOG_LEVEL
 ```
 
 `GITHUB_APP_PRIVATE_KEY` accepts the GitHub-downloaded PEM as-is or a single-line value with `\n` escapes.
+
+Optional KV setup for dedupe:
+
+```powershell
+npx wrangler kv namespace create WEBHOOK_STATE
+```
+
+Then add your own namespace id to `wrangler.toml`:
+
+```toml
+[[kv_namespaces]]
+binding = "WEBHOOK_STATE"
+id = "<your-kv-namespace-id>"
+```
 
 Recommended logging setup:
 

@@ -351,23 +351,84 @@ function buildReleaseSummary(payload) {
   const release = payload.release;
   const releaseName = cleanString(release.name) ?? cleanString(release.tag_name) ?? "unknown release";
   const publishedAt = cleanString(release.published_at) ?? cleanString(release.created_at) ?? "unknown";
+  const repositoryFullName = cleanString(repo.full_name) ?? "unknown/unknown";
+  const accountLogin = cleanString(repo.owner?.login) ?? repositoryFullName.split("/", 1)[0] ?? "unknown";
+  const repositoryUrl = cleanString(repo.html_url) ?? `https://github.com/${repositoryFullName}`;
   return {
-    repositoryFullName: cleanString(repo.full_name) ?? "unknown/unknown",
-    repositoryName: cleanString(repo.name) ?? cleanString(repo.full_name) ?? "unknown-repo",
-    repositoryUrl:
-      cleanString(repo.html_url) ??
-      `https://github.com/${cleanString(repo.full_name) ?? "unknown/unknown"}`,
+    accountLogin,
+    accountUrl: cleanString(repo.owner?.html_url) ?? `https://github.com/${accountLogin}`,
+    repositoryFullName,
+    repositoryName: cleanString(repo.name) ?? repositoryFullName ?? "unknown-repo",
+    repositoryUrl,
     releaseName,
     releaseTag: cleanString(release.tag_name) ?? releaseName,
     releaseUrl:
-      cleanString(release.html_url) ??
-      `${cleanString(repo.html_url) ?? "https://github.com"}/releases`,
+      cleanString(release.html_url) ?? `${repositoryUrl}/releases`,
     publishedAt,
     publishedAtJst: formatJst(publishedAt),
     body: truncate(cleanString(release.body) ?? "", 700),
     prerelease: Boolean(release.prerelease),
     action: cleanString(payload.action) ?? "published",
   };
+}
+
+function buildExplainerReleaseLines(summary) {
+  return [
+    `- Release: ${summary.repositoryFullName} / ${summary.releaseTag}`,
+    `  URL: ${summary.releaseUrl}`,
+    `  公開日時: ${summary.publishedAt}`,
+  ].join("\n");
+}
+
+function buildExplainerRelatedUrlLines(summary) {
+  return [
+    `- Account: ${summary.accountUrl}`,
+    `- Repository: ${summary.repositoryUrl}`,
+    `- Release: ${summary.releaseUrl}`,
+  ].join("\n");
+}
+
+function buildExplainerPrompt(mentionUserId, payload) {
+  const summary = buildReleaseSummary(payload);
+  const checkedAt = formatJst(new Date().toISOString());
+  return truncate(
+    [
+      `<@${mentionUserId}>`,
+      "",
+      "sunwood-community skillを使って、GitHub更新通知向けの解説投稿を作成してください。",
+      "",
+      "最初に、次の prompt を読んでください。",
+      "shared posting rules: skills/sunwood-community/prompts/shared_posting_rules.md",
+      "shared explainer requirements: skills/sunwood-community/prompts/shared_explainer_requirements.md",
+      "shared result requirements: skills/sunwood-community/prompts/shared_result_requirements.md",
+      "",
+      "投稿ルール:",
+      "- 投稿文章は英語で作成してください。",
+      "",
+      "対象情報:",
+      `- 監視対象: ${summary.accountLogin}`,
+      `- アカウントURL: ${summary.accountUrl}`,
+      `- チェック時刻: ${checkedAt}`,
+      "",
+      "## 新しく公開された Release",
+      buildExplainerReleaseLines(summary),
+      "",
+      "この Release について:",
+      "- どんな更新かを、公開ノートや差分、関連ドキュメントをもとに具体的に説明してください",
+      "- できれば以前のバージョンとの差や、利用者への影響も補足してください",
+      "- release note が薄い場合は、関連ドキュメントや repository 情報も見て補完してください",
+      "",
+      "関連URL:",
+      buildExplainerRelatedUrlLines(summary),
+      "",
+      "まず GitHub イベントの調査レポート Markdown を作成し、その内容を元に図解画像を作ってください。",
+      "",
+      "結果には必ず:",
+      "- 投稿した解説のURL",
+      "- 解説のポイントまとめ",
+    ].join("\n"),
+    1900
+  );
 }
 
 function buildThreadStarterContent(payload, profile) {
@@ -436,9 +497,8 @@ function buildThreadEmbedPayload(payload, profile) {
 }
 
 function buildMentionPayload(mentionUserId, payload) {
-  const summary = buildReleaseSummary(payload);
   return {
-    content: `<@${mentionUserId}> ${escapeMarkdownInline(summary.repositoryFullName)} の ${escapeMarkdownInline(summary.releaseTag)} を検知しました。`,
+    content: buildExplainerPrompt(mentionUserId, payload),
     allowed_mentions: { users: [mentionUserId] },
   };
 }

@@ -71,6 +71,7 @@ It handles:
 - release-only event filtering
 - `test` / `production` delivery profiles
 - no inherited production mention in `test`
+- structured explainer prompt delivery when a mention user is configured
 - optional KV-based deduplication for redeliveries
 
 Quick start:

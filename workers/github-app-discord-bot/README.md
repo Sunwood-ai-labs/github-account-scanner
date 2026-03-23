@@ -16,6 +16,7 @@ This worker is based on the same deployment shape as [`onizuka-agi-co/github-app
 - can stamp a reaction onto the detected GitHub release notes
 - supports `production` and `test` delivery profiles
 - never inherits production mentions in `test` unless explicitly configured
+- when a mention user is configured, posts the structured AgentAGI explainer prompt into the release thread
 - can optionally dedupe deliveries via Cloudflare KV
 
 ## Required GitHub App Settings

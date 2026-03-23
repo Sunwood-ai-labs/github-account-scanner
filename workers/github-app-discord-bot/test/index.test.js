@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 
 import {
+  buildMentionPayload,
   buildReleaseKey,
   computeSignature,
   createGitHubAppJwt,
@@ -42,6 +43,10 @@ function sampleReleasePayload({
       name: "github-account-scanner-detection-sample-20260321-195933",
       full_name: "Sunwood-ai-labs/github-account-scanner-detection-sample-20260321-195933",
       html_url: "https://github.com/Sunwood-ai-labs/github-account-scanner-detection-sample-20260321-195933",
+      owner: {
+        login: "Sunwood-ai-labs",
+        html_url: "https://github.com/Sunwood-ai-labs",
+      },
     },
     release: {
       id: 299888743,
@@ -199,6 +204,16 @@ test("logEvent emits structured logs when the level matches", () => {
   assert.match(messages[0], /"deliveryId":"delivery-1"/);
 });
 
+test("buildMentionPayload creates the structured explainer prompt", () => {
+  const payload = buildMentionPayload("1475431819565469706", sampleReleasePayload());
+
+  assert.equal(payload.allowed_mentions.users[0], "1475431819565469706");
+  assert.match(payload.content, /^<@1475431819565469706>/);
+  assert.match(payload.content, /sunwood-community skillを使って/);
+  assert.match(payload.content, /## 新しく公開された Release/);
+  assert.match(payload.content, /- Release: Sunwood-ai-labs\/github-account-scanner-detection-sample-20260321-195933 \/ v0\.1\.5/);
+});
+
 test("handleRequest acknowledges ping", async () => {
   const secret = "super-secret";
   const body = JSON.stringify({ zen: "Keep it logically awesome." });
@@ -274,6 +289,38 @@ test("handleRequest posts release notifications to Discord Bot API", async (cont
   assert.equal(body.discordResult.mentionMessageId, null);
   assert.equal(calls.length, 3);
   assert.match(calls[0].body.content, /\[test\]/);
+});
+
+test("handleRequest posts the structured explainer prompt when mention user is configured", async (context) => {
+  const secret = "super-secret";
+  const payload = sampleReleasePayload();
+  const request = await buildRequest(secret, payload, {
+    "x-github-delivery": "delivery-mention",
+  });
+  const { calls, fetchMock } = createDiscordFetchMock();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = fetchMock;
+  context.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const response = await handleRequest(request, {
+    GITHUB_APP_WEBHOOK_SECRET: secret,
+    DISCORD_DELIVERY_PROFILE: "production",
+    DISCORD_BOT_TOKEN: "token",
+    DISCORD_CHANNEL_ID: "1476217154004058143",
+    DISCORD_PRODUCTION_MENTION_USER_ID: "1475431819565469706",
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.handled, true);
+  assert.equal(body.discordResult.mode, "bot");
+  assert.equal(body.discordResult.mentionMessageId, "message-4");
+  assert.equal(calls.length, 4);
+  assert.match(calls[3].body.content, /^<@1475431819565469706>/);
+  assert.match(calls[3].body.content, /sunwood-community skillを使って/);
+  assert.match(calls[3].body.content, /投稿文章は英語で作成してください/);
 });
 
 test("stampReleaseReaction uses the GitHub App installation token and release reactions API", async (context) => {

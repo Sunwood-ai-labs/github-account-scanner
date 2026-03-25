@@ -1,0 +1,58 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="126" y1="104" x2="1454" y2="802" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F7F1E6"/>
+      <stop offset="1" stop-color="#E7EEF7"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="212" y1="154" x2="1346" y2="748" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#163252"/>
+      <stop offset="1" stop-color="#274A73"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7EB6FF"/>
+      <stop offset="1" stop-color="#C8E6C9"/>
+    </linearGradient>
+    <filter id="shadow" x="150" y="92" width="1300" height="716" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="24"/>
+      <feGaussianBlur stdDeviation="24"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.0823529 0 0 0 0 0.160784 0 0 0 0 0.286275 0 0 0 0.22 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_1"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_1" result="shape"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="1430" cy="142" r="148" fill="#F0D7CA" opacity="0.72"/>
+  <circle cx="152" cy="790" r="126" fill="#D8E8F8" opacity="0.92"/>
+  <circle cx="1338" cy="802" r="98" fill="#D8E8F8" opacity="0.76"/>
+
+  <g filter="url(#shadow)">
+    <rect x="198" y="138" width="1204" height="620" rx="42" fill="url(#panel)"/>
+    <rect x="198" y="138" width="1204" height="620" rx="42" stroke="#355C88" stroke-width="4"/>
+  </g>
+
+  <rect x="262" y="208" width="452" height="480" rx="36" fill="#102743"/>
+  <rect x="262" y="208" width="452" height="480" rx="36" stroke="#3D699B" stroke-width="3"/>
+  <circle cx="488" cy="448" r="150" fill="#1B3658"/>
+  <path d="M488 356C570.843 356 638 423.157 638 506" stroke="url(#accent)" stroke-width="36" stroke-linecap="round"/>
+  <path d="M488 266C620.549 266 728 373.451 728 506" stroke="#7EB6FF" stroke-width="26" stroke-linecap="round" opacity="0.92"/>
+  <path d="M344 650L488 506" stroke="#F6F3ED" stroke-width="36" stroke-linecap="round"/>
+  <circle cx="488" cy="506" r="60" fill="#F6F3ED"/>
+  <circle cx="488" cy="506" r="28" fill="#E66A3D"/>
+  <circle cx="658" cy="330" r="38" fill="#E66A3D"/>
+  <path d="M658 278V382" stroke="#F6F3ED" stroke-width="14" stroke-linecap="round"/>
+  <path d="M606 330H710" stroke="#F6F3ED" stroke-width="14" stroke-linecap="round"/>
+
+  <text x="784" y="278" fill="#7EB6FF" font-family="'Segoe UI', Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="0.18em">GITHUB APP RELEASE</text>
+  <text x="784" y="378" fill="#F6F3ED" font-family="'Segoe UI', Arial, sans-serif" font-size="88" font-weight="800">github-account-scanner</text>
+  <text x="784" y="462" fill="#C8E6C9" font-family="'Segoe UI', Arial, sans-serif" font-size="54" font-weight="700">v0.2.0</text>
+  <text x="784" y="548" fill="#E7EEF7" font-family="'Segoe UI', Arial, sans-serif" font-size="34" font-weight="500">Worker-first Discord release delivery</text>
+  <text x="784" y="602" fill="#E7EEF7" font-family="'Segoe UI', Arial, sans-serif" font-size="34" font-weight="500">GitHub App webhook verification, structured logs, reactions, and prompt routing</text>
+
+  <rect x="784" y="646" width="338" height="62" rx="31" fill="#F6F3ED"/>
+  <text x="832" y="687" fill="#163252" font-family="'Segoe UI', Arial, sans-serif" font-size="30" font-weight="700">Cloudflare Workers</text>
+  <rect x="1142" y="646" width="196" height="62" rx="31" fill="#E66A3D"/>
+  <text x="1192" y="687" fill="#FFF8F2" font-family="'Segoe UI', Arial, sans-serif" font-size="30" font-weight="700">Discord Bot API</text>
+</svg>

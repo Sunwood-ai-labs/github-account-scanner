@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>github-account-scanner</strong><br />
-  GitHub アカウントの新規公開リポジトリと新規公開 release を監視し、必要なら Discord へ通知するローカル運用向け CLI です。
+  Cloudflare Worker を主役にした GitHub App release 通知リポジトリです。
 </p>
 
 <p align="center">
@@ -15,140 +15,134 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/actions/workflow/status/Sunwood-ai-labs/github-account-scanner/validate.yml?branch=main&label=validate&style=flat-square" alt="Validate workflow status" />
-  <img src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square" alt="Python 3.11+" />
-  <img src="https://img.shields.io/badge/package-uv-6C47FF?style=flat-square" alt="uv package manager" />
-  <img src="https://img.shields.io/badge/source-GitHub%20API-181717?style=flat-square" alt="GitHub API" />
-  <img src="https://img.shields.io/badge/notify-Discord-5865F2?style=flat-square" alt="Discord notifications" />
+  <img src="https://img.shields.io/badge/runtime-Cloudflare%20Workers-F38020?style=flat-square" alt="Cloudflare Workers" />
+  <img src="https://img.shields.io/badge/source-GitHub%20App-181717?style=flat-square" alt="GitHub App" />
+  <img src="https://img.shields.io/badge/notify-Discord%20Bot%20API-5865F2?style=flat-square" alt="Discord Bot API" />
+  <img src="https://img.shields.io/badge/test-node--test-5FA04E?style=flat-square" alt="node:test" />
   <img src="https://img.shields.io/badge/license-MIT-2EA043?style=flat-square" alt="MIT License" />
 </p>
 
-## ✨ 概要
+## 概要
 
-`github-account-scanner` は、`Sunwood-ai-labs` のような GitHub アカウントをローカルから定期監視するための Python CLI です。
+`github-account-scanner` は Worker-first 構成に切り替えました。
 
-監視対象は次のとおりです。
+現在の本番経路はこれだけです。
 
-- 新しく作成された公開リポジトリ
-- 新しく公開された GitHub release
-- 必要に応じた Discord 通知
-- AgentAGI 向けの follow-up 解説 prompt
+`GitHub App -> Cloudflare Worker -> Discord Bot API`
 
-運用は CI 常駐ではなく、ローカル定期実行を前提にしています。
+以前の Python polling CLI、ローカル scheduler、REST API 差分監視経路は削除しました。production 用として十分ではなかったため、この repository では今後サポートしません。
 
-## 🔍 何を監視するか
+## 何をする Worker か
 
-- 対象ユーザーまたは organization 配下の公開リポジトリ一覧
-- 各リポジトリの直近 `100` 件の release
-- `draft release` から公開状態になった release
+主実装は [`workers/github-app-discord-bot`](./workers/github-app-discord-bot) にあります。
 
-release は `100` 件に絞ることで、1 リポジトリあたり 1 API 呼び出しで監視しています。通常の定期実行には実用的ですが、1 回の実行間隔中に同じリポジトリで `100` 件を超える release が増えるケースでは、監視頻度を上げるかページネーション対応が必要です。
+対応している内容:
 
-## 🧠 なぜ polling 方式か
+- GitHub App webhook の署名検証
+- `release` の `published` だけを通知
+- Discord の親メッセージ投稿、thread 作成、embed 投稿
+- `test` / `production` プロファイル切り替え
+- production 専用メンション
+- mention user 設定時の AgentAGI 向け structured explainer prompt 投稿
+- GitHub App installation token を使った release reaction 付与
+- デバッグしやすい structured Worker logs
+- Cloudflare KV を使った任意の重複抑止
 
-GitHub には、他人のアカウント全体をそのまま監視できる ready-to-use webhook がありません。
+AgentAGI 向け prompt はオプションです。本文には `skills/sunwood-community/prompts/*` の外部参照が含まれるため、メンション先の bot 側でその path を解決できる前提です。
 
-そのため、この project では GitHub REST API を定期実行し、前回のローカル state と比較する方式を採っています。
+## クイックスタート
 
-## ⚙️ 前提条件
-
-- Python `3.11+`
-- `uv`
-- 大規模アカウント向けの `GITHUB_TOKEN` または `GH_TOKEN`
-
-2026-03-21 時点で `Sunwood-ai-labs` は `700` 件超の public repo を持っています。unauthenticated の GitHub REST API 制限では足りないため、release まで含めた本格運用には token 設定を強く推奨します。
-
-## 🚀 クイックスタート
+まず Worker の依存を入れます。
 
 ```powershell
-uv sync
+npm --prefix workers/github-app-discord-bot install
 ```
 
-必要なら token を設定します。
+ローカル起動:
 
 ```powershell
-$env:GITHUB_TOKEN = "ghp_xxx"
+copy workers\github-app-discord-bot\.dev.vars.example workers\github-app-discord-bot\.dev.vars
+npm run dev
 ```
 
-初回 baseline を作るには:
+テスト:
 
 ```powershell
-uv run github-scan check Sunwood-ai-labs
+npm test
 ```
 
-出力先を明示する例:
+デプロイ:
 
 ```powershell
-uv run github-scan check Sunwood-ai-labs `
-  --state-file state/sunwood-ai-labs.json `
-  --json-report state/last-report.json `
-  --markdown-report state/last-report.md
+npm run deploy
 ```
 
-## 🔔 Discord 通知
-
-`.env` または `.env.local` に `DISCORD_BOT_TOKEN` と `DISCORD_CHANNEL_ID` を設定すると、検知結果を Discord に送れます。
-
-change を検知したときは次の流れで通知します。
-
-- 親チャンネルへ短い要約を投稿
-- イベント単位の thread を作成
-- thread 内へ詳細 embed を投稿
-
-`DISCORD_EXPLAINER_USER_ID` も設定すると、その user を thread 内でメンションし、GitHub 通知向けの structured prompt を追加で送ります。参照されるテンプレートは次の 3 つです。
-
-- [`src/github_scan/prompts/discord_explainer_request.md`](./src/github_scan/prompts/discord_explainer_request.md)
-- [`src/github_scan/prompts/discord_explainer_repository.md`](./src/github_scan/prompts/discord_explainer_repository.md)
-- [`src/github_scan/prompts/discord_explainer_release.md`](./src/github_scan/prompts/discord_explainer_release.md)
-
-現在の prompt では、下流 Bot が作る投稿文章は英語で出すように指示しています。
-
-これらのテンプレートは、下流の AgentAGI 実行環境で `skills/sunwood-community/prompts/*` を参照できる前提です。別環境の bot で使う場合は、その prompt path を先に調整してください。
-
-`DISCORD_WEBHOOK_URL` 互換経路も残していますが、bot token がある場合は Bot API を優先します。
-
-通知 payload の dry-run:
+ログ確認:
 
 ```powershell
-uv run github-scan notify-discord --report-file state/last-report.json --dry-run
+npm run tail
 ```
 
-## 📁 出力ファイル
+## GitHub App 側の必須設定
 
-- `state/<account>.json`
-  差分判定に使う保存済み snapshot
-- `state/last-report.json`
-  最新の機械可読レポート
-- `state/last-report.md`
-  運用確認しやすい Markdown レポート
+- `Webhook` を有効化
+- `Webhook URL` を `https://<worker>.workers.dev/webhook` に設定
+- `Webhook secret` を `GITHUB_APP_WEBHOOK_SECRET` と一致させる
+- subscribed event は `Release`
+- repository permission は `Contents: Read`
+- 監視したい repository に app を install
 
-state 配下は実行時生成物なので、git では追跡しません。
+## Discord 側の必須設定
 
-## 🧪 ローカル開発
+- `DISCORD_BOT_TOKEN`
+- `DISCORD_PRODUCTION_CHANNEL_ID` または共通の `DISCORD_CHANNEL_ID`
+- 必要なら `DISCORD_PRODUCTION_MENTION_USER_ID`
+- Bot に `View Channel` `Send Messages` `Create Public Threads` `Send Messages in Threads` `Embed Links` を付与
 
-基本的な確認コマンド:
+## 環境変数
 
-```powershell
-uv run python -m unittest discover -s tests
-uv run github-scan --help
-```
+root の [`.env.example`](./.env.example) は Worker 前提の項目だけにしています。
 
-手動の end-to-end 確認例:
+- `GITHUB_APP_WEBHOOK_SECRET`
+- `GITHUB_APP_ID`
+- `GITHUB_APP_PRIVATE_KEY`
+- `GITHUB_RELEASE_REACTION`
+- `WORKER_LOG_LEVEL`
+- `DISCORD_BOT_TOKEN`
+- `DISCORD_DELIVERY_PROFILE`
+- `DISCORD_CHANNEL_ID`
+- `DISCORD_PRODUCTION_CHANNEL_ID`
+- `DISCORD_TEST_CHANNEL_ID`
+- `DISCORD_PRODUCTION_MENTION_USER_ID`
+- `DISCORD_TEST_MENTION_USER_ID`
 
-```powershell
-uv run github-scan check Sunwood-ai-labs
-uv run github-scan notify-discord --report-file state/last-report.json
-```
+`GITHUB_APP_PRIVATE_KEY` は GitHub から落とした PEM そのままでも、`\n` 形式の 1 行文字列でも使えます。
 
-## ⚠️ 運用メモ
+## 運用メモ
 
-- 本番運用はローカル定期実行向けです
-- GitHub Actions は検証専用で、本番監視ランタイムには使いません
-- 監視対象は公開面のみです
-- draft release は公開されるまで通知しません
+- `test` は `DISCORD_TEST_MENTION_USER_ID` を入れない限り production のメンションを継承しません
+- release reaction は Discord 通知の後段で best-effort に実行します
+- `WEBHOOK_STATE` がない場合は redelivery で二重通知することがあります
+- `WEBHOOK_STATE` はあえて必須にしていません。重複抑止を有効にしたいときだけ、自分の KV namespace を作って `wrangler.toml` に追加してください
+- KV ベースの重複抑止は真の同時到着には atomic ではありません
 
-## 📚 参考
+## リポジトリ構成
 
-- [Repositories REST API](https://docs.github.com/rest/repos/repos)
-- [Releases REST API](https://docs.github.com/rest/releases)
-- [REST API rate limits](https://docs.github.com/enterprise-cloud@latest/rest/overview/rate-limits-for-the-rest-api)
-- [Actions limits (`GITHUB_TOKEN`)](https://docs.github.com/en/enterprise-cloud@latest/actions/reference/actions-limits)
+- [`workers/github-app-discord-bot/src/index.js`](./workers/github-app-discord-bot/src/index.js)
+  Worker 本体
+- [`workers/github-app-discord-bot/test/index.test.js`](./workers/github-app-discord-bot/test/index.test.js)
+  Worker テスト
+- [`workers/github-app-discord-bot/wrangler.toml`](./workers/github-app-discord-bot/wrangler.toml)
+  Cloudflare 設定
+- [`workers/github-app-discord-bot/README.md`](./workers/github-app-discord-bot/README.md)
+  Worker 個別の詳細手順
+
+## 検証
+
+GitHub Actions は Node ベースの Worker テストだけを実行します。root の `npm test` も Worker のテストを呼び出します。
+
+## 参考
+
+- [GitHub App webhook docs](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/using-webhooks-with-github-apps)
+- [Cloudflare Workers docs](https://developers.cloudflare.com/workers/)
+- [Discord Bot API docs](https://discord.com/developers/docs/intro)

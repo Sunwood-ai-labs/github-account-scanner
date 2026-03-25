@@ -1,5 +1,5 @@
 const DEFAULT_WEBHOOK_PATH = "/webhook";
-const DEFAULT_USER_AGENT = "github-account-scanner-worker/0.1.0";
+const DEFAULT_USER_AGENT = "github-account-scanner-worker/0.2.0";
 const DEFAULT_DEDUPE_TTL_SECONDS = 60 * 60 * 24 * 30;
 const DISCORD_API_BASE = "https://discord.com/api/v10";
 const GITHUB_API_BASE = "https://api.github.com";

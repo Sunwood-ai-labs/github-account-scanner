@@ -1,7 +1,7 @@
 {
   "name": "github-account-scanner",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Worker-first GitHub App release notifications for Discord Bot API",
   "scripts": {
     "dev": "npm --prefix workers/github-app-discord-bot run dev",

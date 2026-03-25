@@ -1,10 +1,10 @@
-.venv/
-__pycache__/
-.pytest_cache/
-*.pyc
 .env
 .env.local
 state/*.json
 state/*.md
 !state/.gitkeep
-logs/scheduled-monitor/
+logs/
+tmp/
+workers/github-app-discord-bot/.dev.vars
+workers/github-app-discord-bot/.wrangler/
+workers/github-app-discord-bot/node_modules/
